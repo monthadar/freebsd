@@ -32,7 +32,7 @@
 
 SUBDIR = usb
 SUBDIR += ${_dwc_otg} ehci ${_musb} ohci uhci xhci ${_uss820dci} ${_at91dci} ${_atmegadci} ${_avr32dci}
-SUBDIR += ${_rum} run ${_uath} upgt usie ural ${_zyd} ${_urtw} urtwn
+SUBDIR += ${_rum} run ${_uath} ${_uath6kl} upgt usie ural ${_zyd} ${_urtw} urtwn
 SUBDIR += atp uhid ukbd ums udbp ufm uep
 SUBDIR += ucom u3g uark ubsa ubser uchcom ucycom ufoma uftdi ugensa uipaq ulpt \
 	  umct umcs umodem umoscom uplcom uslcom uvisor uvscom
@@ -43,6 +43,7 @@ SUBDIR += quirk template
 .if ${MK_SOURCELESS_UCODE} != "no"
 _rum=		rum
 _uath=		uath
+_uath6kl=	uath6kl
 _zyd=		zyd
 _kue=		kue
 .endif

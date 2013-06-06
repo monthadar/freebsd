@@ -42,6 +42,7 @@ SUBDIR=	\
 	ata \
 	ath \
 	ath_pci \
+	${_ath6kl} \
 	${_auxio} \
 	${_bce} \
 	bfe \
@@ -434,6 +435,7 @@ _pfsync=	pfsync
 .endif
 
 .if ${MK_SOURCELESS_UCODE} != "no"
+_ath6kl=	ath6kl
 _bce=		bce
 _fatm=		fatm
 _fxp=		fxp
