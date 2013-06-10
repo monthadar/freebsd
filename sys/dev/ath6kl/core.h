@@ -27,6 +27,18 @@
 #ifndef CORE_H
 #define CORE_H
 
+enum {
+	ATH6KL_USB_PIPE_TX_CTRL = 0,
+	ATH6KL_USB_PIPE_TX_DATA_LP,
+	ATH6KL_USB_PIPE_TX_DATA_MP,
+	ATH6KL_USB_PIPE_TX_DATA_HP,
+	ATH6KL_USB_PIPE_RX_CTRL,
+	ATH6KL_USB_PIPE_RX_DATA,
+	ATH6KL_USB_PIPE_RX_DATA2,
+	ATH6KL_USB_PIPE_RX_INT,
+	ATH6KL_USB_N_XFERS = 8,
+};
+
 enum ath6kl_hif_type {
 	ATH6KL_HIF_TYPE_SDIO,
 	ATH6KL_HIF_TYPE_USB,
@@ -55,6 +67,7 @@ struct ath6kl_softc {
 	struct ifnet			*sc_ifp;
 	device_t			sc_dev;
 	struct usb_device		*sc_udev;
+	int				sc_iface_index;
 	struct mtx			sc_mtx;
 	struct ath6kl_version		sc_version;
 	uint32_t			sc_target_type;

@@ -66,6 +66,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/sysctl.h>
 #include <sys/lock.h>
 #include <sys/mutex.h>
+#include <sys/condvar.h>
 #include <sys/mbuf.h>
 #include <sys/kernel.h>
 #include <sys/socket.h>
@@ -102,6 +103,8 @@ __FBSDID("$FreeBSD$");
 
 #include <dev/usb/usb.h>
 #include <dev/usb/usbdi.h>
+#include <dev/usb/usb_core.h>
+#include <dev/usb/usb_device.h>
 #include "usbdevs.h"
 
 #include <dev/ath6kl/if_ath6kldebug.h>
@@ -276,6 +279,47 @@ ath6kl_probe(device_t dev)
 }
 
 static int
+ath6kl_usb_setup_xfer_resources(struct ath6kl_softc *sc)
+{
+	struct usb_device *udev = sc->sc_udev;
+	struct usb_endpoint *ep;
+	uint8_t iface_index = sc->sc_iface_index;
+	uint8_t ep_max;
+
+	ep = udev->endpoints;
+	ep_max = udev->endpoints_max;
+	while (ep_max--) {
+		/* look for matching endpoints */
+		if ((iface_index == USB_IFACE_INDEX_ANY) ||
+		    (iface_index == ep->iface_index)) {
+			switch(ep->edesc->bmAttributes) {
+			case UE_CONTROL:
+				printf("Endpoint %X CONTROL!\n",
+				    ep->edesc->bEndpointAddress);
+				break;
+			case UE_ISOCHRONOUS:
+				printf("Endpoint %X ISOCHRONOUS!\n",
+				    ep->edesc->bEndpointAddress);
+				break;
+			case UE_BULK:
+				printf("Endpoint %X BULK!\n",
+				    ep->edesc->bEndpointAddress);
+				break;
+			case UE_INTERRUPT:
+				printf("Endpoint %X INTERRUPT!\n",
+				    ep->edesc->bEndpointAddress);
+				break;
+			default:
+				printf("Endpoint unkown!\n");
+			}
+		}
+		ep++;
+	}
+
+	return 0;
+}
+
+static int
 ath6kl_attach(device_t dev)
 {
 	struct ath6kl_softc *sc = device_get_softc(dev);
@@ -285,6 +329,7 @@ ath6kl_attach(device_t dev)
 
 	sc->sc_dev = dev;
 	sc->sc_udev = udev;
+	sc->sc_iface_index = uaa->info.bIfaceIndex;
 #ifdef ATH6KL_DEBUG
 	sc->sc_debug = ath6kl_debug;
 #endif
@@ -305,6 +350,8 @@ ath6kl_attach(device_t dev)
 
 	mtx_init(&sc->sc_mtx, device_get_nameunit(sc->sc_dev), MTX_NETWORK_LOCK,
 	    MTX_DEF);
+
+	ath6kl_usb_setup_xfer_resources(sc);
 
 	ret = ath6kl_core_create(sc);
 	if (ret != 0) {
