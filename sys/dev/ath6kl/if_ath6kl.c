@@ -286,6 +286,7 @@ ath6kl_usb_setup_xfer_resources(struct ath6kl_softc *sc)
 	uint8_t iface_index = sc->sc_iface_index;
 	uint8_t ep_max;
 
+	DPRINTF(sc, ATH6KL_DBG_USB, "%s\n", "setting up USB Pipes using interface");
 	ep = udev->endpoints;
 	ep_max = udev->endpoints_max;
 	while (ep_max--) {
@@ -293,24 +294,30 @@ ath6kl_usb_setup_xfer_resources(struct ath6kl_softc *sc)
 		if ((iface_index == USB_IFACE_INDEX_ANY) ||
 		    (iface_index == ep->iface_index)) {
 			switch(ep->edesc->bmAttributes) {
-			case UE_CONTROL:
-				printf("Endpoint %X CONTROL!\n",
-				    ep->edesc->bEndpointAddress);
-				break;
 			case UE_ISOCHRONOUS:
-				printf("Endpoint %X ISOCHRONOUS!\n",
-				    ep->edesc->bEndpointAddress);
+				/* TODO for ISO */
+				DPRINTF(sc, ATH6KL_DBG_USB,
+				   "%s ISOC Ep:0x%2.2X maxpktsz:%d interval:%d\n",
+				   UE_GET_DIR(ep->edesc->bEndpointAddress) == UE_DIR_IN ?
+				   "RX" : "TX", ep->edesc->bEndpointAddress,
+				   UGETW(ep->edesc->wMaxPacketSize), ep->edesc->bInterval);
 				break;
 			case UE_BULK:
-				printf("Endpoint %X BULK!\n",
-				    ep->edesc->bEndpointAddress);
+				DPRINTF(sc, ATH6KL_DBG_USB,
+				   "%s Bulk Ep:0x%2.2X maxpktsz:%d\n",
+				   UE_GET_DIR(ep->edesc->bEndpointAddress) == UE_DIR_IN ?
+				   "RX" : "TX", ep->edesc->bEndpointAddress,
+				   UGETW(ep->edesc->wMaxPacketSize));
 				break;
 			case UE_INTERRUPT:
-				printf("Endpoint %X INTERRUPT!\n",
-				    ep->edesc->bEndpointAddress);
+				DPRINTF(sc, ATH6KL_DBG_USB,
+				   "%s Int Ep:0x%2.2X maxpktsz:%d interval:%d\n",
+				   UE_GET_DIR(ep->edesc->bEndpointAddress) == UE_DIR_IN ?
+				   "RX" : "TX", ep->edesc->bEndpointAddress,
+				   UGETW(ep->edesc->wMaxPacketSize), ep->edesc->bInterval);
 				break;
 			default:
-				printf("Endpoint unkown!\n");
+				ath6kl_err("Endpoint unkown: %u\n", ep->edesc->bmAttributes);
 			}
 		}
 		ep++;
