@@ -146,6 +146,111 @@ static const STRUCT_USB_HOST_ID ath6kl_devs[] = {
 #define ATH6KL_USB_CONTROL_REQ_SEND_BMI_CMD        1
 #define ATH6KL_USB_CONTROL_REQ_RECV_BMI_RESP       2
 
+static usb_callback_t ath_app_ctrl_tx_callback;
+static usb_callback_t ath_app_ctrl_rx_callback;
+static usb_callback_t ath_app_data_lp_tx_callback;
+static usb_callback_t ath_app_data_mp_tx_callback;
+static usb_callback_t ath_app_data_hp_tx_callback;
+static usb_callback_t ath_app_data_rx_callback;
+static usb_callback_t ath_app_data2_rx_callback;
+static usb_callback_t ath_app_int_rx_callback;
+
+static const struct usb_config ath6kl_usbconfig[ATH6KL_USB_N_XFERS] = {
+	[ATH6KL_USB_PIPE_TX_CTRL] = {
+		.type = UE_BULK,
+		.endpoint = ATH6KL_USB_EP_ADDR_APP_CTRL_OUT,
+		.direction = UE_DIR_OUT,
+		.bufsize = ATH6KL_MAX_CMDSZ,
+		.flags = {
+			.force_short_xfer = 1,
+			.pipe_bof = 1,
+		},
+		.callback = ath_app_ctrl_tx_callback,
+		.timeout = ATH6KL_CMD_TIMEOUT
+	},
+	[ATH6KL_USB_PIPE_TX_DATA_LP] = {
+		.type = UE_BULK,
+		.endpoint = ATH6KL_USB_EP_ADDR_APP_DATA_LP_OUT,
+		.direction = UE_DIR_OUT,
+		.bufsize = ATH6KL_MAX_CMDSZ,
+		.flags = {
+			.force_short_xfer = 1,
+			.pipe_bof = 1,
+		},
+		.callback = ath_app_data_lp_tx_callback,
+		.timeout = ATH6KL_CMD_TIMEOUT
+	},
+	[ATH6KL_USB_PIPE_TX_DATA_MP] = {
+		.type = UE_BULK,
+		.endpoint = ATH6KL_USB_EP_ADDR_APP_DATA_MP_OUT,
+		.direction = UE_DIR_OUT,
+		.bufsize = ATH6KL_MAX_CMDSZ,
+		.flags = {
+			.force_short_xfer = 1,
+			.pipe_bof = 1,
+		},
+		.callback = ath_app_data_mp_tx_callback,
+		.timeout = ATH6KL_CMD_TIMEOUT
+	},
+	[ATH6KL_USB_PIPE_TX_DATA_HP] = {
+		.type = UE_BULK,
+		.endpoint = ATH6KL_USB_EP_ADDR_APP_DATA_HP_OUT,
+		.direction = UE_DIR_OUT,
+		.bufsize = ATH6KL_MAX_CMDSZ,
+		.flags = {
+			.force_short_xfer = 1,
+			.pipe_bof = 1,
+		},
+		.callback = ath_app_data_hp_tx_callback,
+		.timeout = ATH6KL_CMD_TIMEOUT
+	},
+	[ATH6KL_USB_PIPE_RX_CTRL] = {
+		.type = UE_BULK,
+		.endpoint = ATH6KL_USB_EP_ADDR_APP_CTRL_IN,
+		.direction = UE_DIR_IN,
+		.bufsize = ATH6KL_MAX_CMDSZ,
+		.flags = {
+			.force_short_xfer = 1,
+			.pipe_bof = 1,
+		},
+		.callback = ath_app_ctrl_rx_callback,
+	},
+	[ATH6KL_USB_PIPE_RX_DATA] = {
+		.type = UE_BULK,
+		.endpoint = ATH6KL_USB_EP_ADDR_APP_DATA_IN,
+		.direction = UE_DIR_IN,
+		.bufsize = ATH6KL_MAX_CMDSZ,
+		.flags = {
+			.force_short_xfer = 1,
+			.pipe_bof = 1,
+		},
+		.callback = ath_app_data_rx_callback,
+	},
+	[ATH6KL_USB_PIPE_RX_DATA2] = {
+		.type = UE_BULK,
+		.endpoint = ATH6KL_USB_EP_ADDR_APP_DATA2_IN,
+		.direction = UE_DIR_IN,
+		.bufsize = ATH6KL_MAX_CMDSZ,
+		.flags = {
+			.force_short_xfer = 1,
+			.pipe_bof = 1,
+		},
+		.callback = ath_app_data2_rx_callback,
+	},
+	[ATH6KL_USB_PIPE_RX_INT] = {
+		.type = UE_INTERRUPT,
+		.endpoint = ATH6KL_USB_EP_ADDR_APP_INT_IN,
+		.direction = UE_DIR_IN,
+		.bufsize = 64,
+		.flags = {
+			.force_short_xfer = 1,
+			.pipe_bof = 1,
+		},
+		.callback = ath_app_int_rx_callback,
+		.timeout = ATH6KL_CMD_TIMEOUT
+	},
+};
+
 static int
 ath6kl_usb_submit_ctrl_out(struct ath6kl_softc *sc, uint8_t request,
     uint16_t value, uint16_t index, void *data, uint32_t size)
@@ -285,6 +390,7 @@ ath6kl_usb_setup_xfer_resources(struct ath6kl_softc *sc)
 	struct usb_endpoint *ep;
 	uint8_t iface_index = sc->sc_iface_index;
 	uint8_t ep_max;
+	int error;
 
 	DPRINTF(sc, ATH6KL_DBG_USB, "%s\n", "setting up USB Pipes using interface");
 	ep = udev->endpoints;
@@ -323,7 +429,13 @@ ath6kl_usb_setup_xfer_resources(struct ath6kl_softc *sc)
 		ep++;
 	}
 
-	return 0;
+	error = usbd_transfer_setup(udev, &iface_index, sc->sc_xfer,
+	    ath6kl_usbconfig, ATH6KL_USB_N_XFERS, sc, &sc->sc_mtx);
+	if (error) {
+		device_printf(sc->sc_dev, "could not allocate USB transfers, "
+		    "err=%s\n", usbd_errstr(error));
+	}
+	return error;
 }
 
 static int
@@ -404,6 +516,62 @@ ath6kl_detach(device_t dev)
 
 	mtx_destroy(&sc->sc_mtx);
 	return (0);
+}
+
+static void
+ath_app_ctrl_tx_callback(struct usb_xfer *xfer, usb_error_t error)
+{
+
+	printf("%s\n", __func__);
+}
+
+static void
+ath_app_ctrl_rx_callback(struct usb_xfer *xfer, usb_error_t error)
+{
+
+	printf("%s\n", __func__);
+}
+
+static void
+ath_app_data_lp_tx_callback(struct usb_xfer *xfer, usb_error_t error)
+{
+
+	printf("%s\n", __func__);
+}
+
+static void
+ath_app_data_mp_tx_callback(struct usb_xfer *xfer, usb_error_t error)
+{
+
+	printf("%s\n", __func__);
+}
+
+static void
+ath_app_data_hp_tx_callback(struct usb_xfer *xfer, usb_error_t error)
+{
+
+	printf("%s\n", __func__);
+}
+
+static void
+ath_app_data_rx_callback(struct usb_xfer *xfer, usb_error_t error)
+{
+
+	printf("%s\n", __func__);
+}
+
+static void
+ath_app_data2_rx_callback(struct usb_xfer *xfer, usb_error_t error)
+{
+
+	printf("%s\n", __func__);
+}
+
+static void
+ath_app_int_rx_callback(struct usb_xfer *xfer, usb_error_t error)
+{
+
+	printf("%s\n", __func__);
 }
 
 static device_method_t ath6kl_methods[] = {

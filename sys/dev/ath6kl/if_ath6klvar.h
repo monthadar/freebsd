@@ -36,7 +36,8 @@
 #define	ATH6KL_DATA_TIMEOUT	10000
 #define	ATH6KL_CMD_TIMEOUT	1000
 
-#define ATH6KL_MAX_CMDSZ         512
+#define ATH6KL_MAX_CMDSZ	512
+#define ATH6KL_MAX_INT_CMDSZ	64
 
 #define	ATH6KL_LOCK(sc)			mtx_lock(&(sc)->sc_mtx)
 #define	ATH6KL_UNLOCK(sc)		mtx_unlock(&(sc)->sc_mtx)
