@@ -73,6 +73,13 @@ int ath6kl_core_init(struct ath6kl_softc *sc, enum ath6kl_htc_type htc_type)
 	sc->sc_version.target_ver = le32toh(targ_info.version);
 	sc->sc_target_type = le32toh(targ_info.type);
 
+	ret = ath6kl_init_hw_params(sc);
+	if (ret)
+		goto err_power_off;
+
+	sc->sc_version.target_ver = le32toh(targ_info.version);
+	sc->sc_target_type = le32toh(targ_info.type);
+
 	return ret;
 
 err_power_off:
