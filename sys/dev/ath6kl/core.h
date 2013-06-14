@@ -27,6 +27,13 @@
 #ifndef CORE_H
 #define CORE_H
 
+#include <sys/param.h>
+#include <sys/systm.h>
+#include <sys/linker.h>
+#include <sys/firmware.h>
+
+MALLOC_DECLARE(M_ATH6KL_FW);
+
 enum {
 	ATH6KL_USB_PIPE_TX_CTRL = 0,
 	ATH6KL_USB_PIPE_TX_DATA_LP,
@@ -178,9 +185,9 @@ enum ath6kl_hw_flags {
 };
 #undef BIT
 
-#define ATH6KL_FW_API2_FILE "fw-2.bin"
-#define ATH6KL_FW_API3_FILE "fw-3.bin"
-#define ATH6KL_FW_API4_FILE "fw-4.bin"
+#define ATH6KL_FW_API2_FILE "fw-2"
+#define ATH6KL_FW_API3_FILE "fw-3"
+#define ATH6KL_FW_API4_FILE "fw-4"
 
 /* AR6003 1.0 definitions */
 #define AR6003_HW_1_0_VERSION                 0x300002ba
@@ -235,11 +242,17 @@ enum ath6kl_hw_flags {
 	AR6004_HW_1_2_FW_DIR "/bdata.bin"
 
 /* AR6004 1.3 definitions */
+/*
+ * XXX: AR6004_HW_1_3_FW_DIR is not pointing to a directory anymore,
+ * instead it is the prefix for the firmware image that is loaded using
+ * firmware_register. Consider changing name to somthing similar to
+ * AR6004_HW_1_3_FW_PREFIX.
+ */
 #define AR6004_HW_1_3_VERSION			0x31c8088a
-#define AR6004_HW_1_3_FW_DIR			"ath6k/AR6004/hw1.3"
-#define AR6004_HW_1_3_FIRMWARE_FILE		"fw.ram.bin"
-#define AR6004_HW_1_3_BOARD_DATA_FILE		"ath6k/AR6004/hw1.3/bdata.bin"
-#define AR6004_HW_1_3_DEFAULT_BOARD_DATA_FILE	"ath6k/AR6004/hw1.3/bdata.bin"
+#define AR6004_HW_1_3_FW_DIR			"ath6klfw_6004_hw1.3"
+#define AR6004_HW_1_3_FIRMWARE_FILE		"ath6klfw_6004_fw_hw1.3"
+#define AR6004_HW_1_3_BOARD_DATA_FILE		"ath6klfw_6004_bdata_hw1.3"
+#define AR6004_HW_1_3_DEFAULT_BOARD_DATA_FILE	"ath6klfw_6004_default_bdata_hw1.3"
 
 /* Per STA data, used in AP mode */
 #define BIT(x)	(1ULL << (x))
@@ -391,6 +404,11 @@ struct ath6kl_softc {
 		const char *fw_board;
 		const char *fw_default_board;
 	}				sc_hw;
+	const struct firmware		*sc_fw_board;
+	uint8_t				*sc_fw;	/* extracted from fw.bin */
+	unsigned int			sc_fw_len;
+	char				sc_fw_version[32];
+	unsigned int			sc_fw_api;
 	uint32_t                        sc_flags;
 #define	ATH6KL_FLAG_INVALID               (1 << 1)
 #define	ATH6KL_FLAG_INITDONE              (1 << 2)
@@ -403,5 +421,6 @@ int ath6kl_core_init(struct ath6kl_softc *, enum ath6kl_htc_type);
 void ath6kl_core_cleanup(struct ath6kl_softc *);
 void ath6kl_core_destroy(struct ath6kl_softc *);
 int ath6kl_init_hw_params(struct ath6kl_softc *);
+int ath6kl_init_fetch_firmwares(struct ath6kl_softc *);
 
 #endif /* CORE_H */

@@ -52,6 +52,8 @@ __FBSDID("$FreeBSD$");
 #include "htc-ops.h"
 #endif
 
+MALLOC_DEFINE(M_ATH6KL_FW, "ath6kl_fw", "Atheros 6KL firmware buffer");
+
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
 static const struct ath6kl_hw hw_list[] = {
@@ -724,52 +726,47 @@ static bool check_device_tree(struct ath6kl *ar)
 	return false;
 }
 #endif /* CONFIG_OF */
+#endif
 
-static int ath6kl_fetch_board_file(struct ath6kl *ar)
+static int ath6kl_fetch_board_file(struct ath6kl_softc *sc)
 {
 	const char *filename;
-	int ret;
 
-	if (ar->fw_board != NULL)
+	if (sc->sc_fw_board != NULL)
 		return 0;
 
-	if (WARN_ON(ar->hw.fw_board == NULL))
-		return -EINVAL;
+	if (sc->sc_hw.fw_board == NULL) {
+		printf("hw.fw_board should not be NULL\n");
+		return EINVAL;
+	}
 
-	filename = ar->hw.fw_board;
-
-	ret = ath6kl_get_fw(ar, filename, &ar->fw_board,
-			    &ar->fw_board_len);
-	if (ret == 0) {
+	filename = sc->sc_hw.fw_board;
+	sc->sc_fw_board = firmware_get(filename);
+	if (sc->sc_fw_board != NULL) {
 		/* managed to get proper board file */
 		return 0;
 	}
 
-	if (check_device_tree(ar)) {
-		/* got board file from device tree */
-		return 0;
-	}
-
 	/* there was no proper board file, try to use default instead */
-	ath6kl_warn("Failed to get board file %s (%d), trying to find default board file.\n",
-		    filename, ret);
+	ath6kl_warn("Failed to get board file %s, trying to find default board file.\n",
+	    filename);
 
-	filename = ar->hw.fw_default_board;
-
-	ret = ath6kl_get_fw(ar, filename, &ar->fw_board,
-			    &ar->fw_board_len);
-	if (ret) {
-		ath6kl_err("Failed to get default board file %s: %d\n",
-			   filename, ret);
-		return ret;
+	filename = sc->sc_hw.fw_default_board;
+	sc->sc_fw_board = firmware_get(sc->sc_hw.fw_default_board);
+	if (sc->sc_fw_board == NULL) {
+		ath6kl_err("Failed to get default board file %s\n", filename);
+		return EINVAL;
 	}
 
-	ath6kl_warn("WARNING! No proper board file was not found, instead using a default board file.\n");
-	ath6kl_warn("Most likely your hardware won't work as specified. Install correct board file!\n");
+	ath6kl_warn("%s\n",
+	"WARNING! No proper board file was not found, instead using a default board file.");
+	ath6kl_warn("%s\n",
+	"Most likely your hardware won't work as specified. Install correct board file!");
 
 	return 0;
 }
 
+#if 0 /* NOT YET */
 static int ath6kl_fetch_otp_file(struct ath6kl *ar)
 {
 	char filename[100];
@@ -938,36 +935,38 @@ static int ath6kl_fetch_fw_api1(struct ath6kl *ar)
 
 	return 0;
 }
+#endif
 
-static int ath6kl_fetch_fw_apin(struct ath6kl *ar, const char *name)
+static int ath6kl_fetch_fw_apin(struct ath6kl_softc *sc, const char *name)
 {
-	size_t magic_len, len, ie_len;
+	size_t magic_len, len;
+	uint32_t ie_id, ie_len;
 	const struct firmware *fw;
 	struct ath6kl_fw_ie *hdr;
 	char filename[100];
-	const u8 *data;
-	int ret, ie_id, i, index, bit;
-	__le32 *val;
+	const uint8_t *data;
+	int ret;
 
-	snprintf(filename, sizeof(filename), "%s/%s", ar->hw.fw.dir, name);
+	snprintf(filename, sizeof(filename), "%s_%s", sc->sc_hw.fw.dir, name);
 
-	ret = request_firmware(&fw, filename, ar->dev);
-	if (ret)
-		return ret;
+	fw = firmware_get(filename);
+	if (fw == NULL)
+		return EINVAL;
+	ret = 0;
 
 	data = fw->data;
-	len = fw->size;
+	len = fw->datasize;
 
 	/* magic also includes the null byte, check that as well */
 	magic_len = strlen(ATH6KL_FIRMWARE_MAGIC) + 1;
 
 	if (len < magic_len) {
-		ret = -EINVAL;
+		ret = EINVAL;
 		goto out;
 	}
 
 	if (memcmp(data, ATH6KL_FIRMWARE_MAGIC, magic_len) != 0) {
-		ret = -EINVAL;
+		ret = EINVAL;
 		goto out;
 	}
 
@@ -979,193 +978,113 @@ static int ath6kl_fetch_fw_apin(struct ath6kl *ar, const char *name)
 		/* hdr is unaligned! */
 		hdr = (struct ath6kl_fw_ie *) data;
 
-		ie_id = le32_to_cpup(&hdr->id);
-		ie_len = le32_to_cpup(&hdr->len);
+		ie_id = le32toh(hdr->id);
+		ie_len = le32toh(hdr->len);
 
 		len -= sizeof(*hdr);
 		data += sizeof(*hdr);
 
 		if (len < ie_len) {
-			ret = -EINVAL;
+			ret = EINVAL;
 			goto out;
 		}
 
 		switch (ie_id) {
 		case ATH6KL_FW_IE_FW_VERSION:
-			strlcpy(ar->wiphy->fw_version, data,
-				sizeof(ar->wiphy->fw_version));
-
-			ath6kl_dbg(ATH6KL_DBG_BOOT,
-				   "found fw version %s\n",
-				    ar->wiphy->fw_version);
-			break;
-		case ATH6KL_FW_IE_OTP_IMAGE:
-			ath6kl_dbg(ATH6KL_DBG_BOOT, "found otp image ie (%zd B)\n",
-				   ie_len);
-
-			ar->fw_otp = kmemdup(data, ie_len, GFP_KERNEL);
-
-			if (ar->fw_otp == NULL) {
-				ret = -ENOMEM;
-				goto out;
-			}
-
-			ar->fw_otp_len = ie_len;
+			strlcpy(sc->sc_fw_version, data, sizeof(sc->sc_fw_version));
+			DPRINTF(sc, ATH6KL_DBG_BOOT, "found fw version %s\n", data);
 			break;
 		case ATH6KL_FW_IE_FW_IMAGE:
-			ath6kl_dbg(ATH6KL_DBG_BOOT, "found fw image ie (%zd B)\n",
-				   ie_len);
-
+			DPRINTF(sc, ATH6KL_DBG_BOOT, "found fw image ie (%zd B)\n",
+			   ie_len);
 			/* in testmode we already might have a fw file */
-			if (ar->fw != NULL)
+			if (sc->sc_fw != NULL)
 				break;
 
-			ar->fw = vmalloc(ie_len);
+			sc->sc_fw = malloc(ie_len, M_ATH6KL_FW, M_WAITOK);
 
-			if (ar->fw == NULL) {
-				ret = -ENOMEM;
+			if (sc->sc_fw == NULL) {
+				ret = ENOMEM;
 				goto out;
 			}
 
-			memcpy(ar->fw, data, ie_len);
-			ar->fw_len = ie_len;
+			memcpy(sc->sc_fw, data, ie_len);
+			sc->sc_fw_len = ie_len;
 			break;
+		case ATH6KL_FW_IE_OTP_IMAGE:
 		case ATH6KL_FW_IE_PATCH_IMAGE:
-			ath6kl_dbg(ATH6KL_DBG_BOOT, "found patch image ie (%zd B)\n",
-				   ie_len);
-
-			ar->fw_patch = kmemdup(data, ie_len, GFP_KERNEL);
-
-			if (ar->fw_patch == NULL) {
-				ret = -ENOMEM;
-				goto out;
-			}
-
-			ar->fw_patch_len = ie_len;
-			break;
 		case ATH6KL_FW_IE_RESERVED_RAM_SIZE:
-			val = (__le32 *) data;
-			ar->hw.reserved_ram_size = le32_to_cpup(val);
-
-			ath6kl_dbg(ATH6KL_DBG_BOOT,
-				   "found reserved ram size ie 0x%d\n",
-				   ar->hw.reserved_ram_size);
-			break;
 		case ATH6KL_FW_IE_CAPABILITIES:
-			ath6kl_dbg(ATH6KL_DBG_BOOT,
-				   "found firmware capabilities ie (%zd B)\n",
-				   ie_len);
-
-			for (i = 0; i < ATH6KL_FW_CAPABILITY_MAX; i++) {
-				index = i / 8;
-				bit = i % 8;
-
-				if (index == ie_len)
-					break;
-
-				if (data[index] & (1 << bit))
-					__set_bit(i, ar->fw_capabilities);
-			}
-
-			ath6kl_dbg_dump(ATH6KL_DBG_BOOT, "capabilities", "",
-					ar->fw_capabilities,
-					sizeof(ar->fw_capabilities));
-			break;
 		case ATH6KL_FW_IE_PATCH_ADDR:
-			if (ie_len != sizeof(*val))
-				break;
-
-			val = (__le32 *) data;
-			ar->hw.dataset_patch_addr = le32_to_cpup(val);
-
-			ath6kl_dbg(ATH6KL_DBG_BOOT,
-				   "found patch address ie 0x%x\n",
-				   ar->hw.dataset_patch_addr);
-			break;
 		case ATH6KL_FW_IE_BOARD_ADDR:
-			if (ie_len != sizeof(*val))
-				break;
-
-			val = (__le32 *) data;
-			ar->hw.board_addr = le32_to_cpup(val);
-
-			ath6kl_dbg(ATH6KL_DBG_BOOT,
-				   "found board address ie 0x%x\n",
-				   ar->hw.board_addr);
-			break;
 		case ATH6KL_FW_IE_VIF_MAX:
-			if (ie_len != sizeof(*val))
-				break;
-
-			val = (__le32 *) data;
-			ar->vif_max = min_t(unsigned int, le32_to_cpup(val),
-					    ATH6KL_VIF_MAX);
-
-			if (ar->vif_max > 1 && !ar->p2p)
-				ar->max_norm_iface = 2;
-
-			ath6kl_dbg(ATH6KL_DBG_BOOT,
-				   "found vif max ie %d\n", ar->vif_max);
+			printf("firmware ie not yet handled\n");
 			break;
 		default:
-			ath6kl_dbg(ATH6KL_DBG_BOOT, "Unknown fw ie: %u\n",
-				   le32_to_cpup(&hdr->id));
+			DPRINTF(sc, ATH6KL_DBG_BOOT, "Unknown fw ie: %u\n", le32toh(hdr->id));
 			break;
 		}
 
 		len -= ie_len;
 		data += ie_len;
 	};
-
 	ret = 0;
 out:
-	release_firmware(fw);
+	if (fw != NULL)
+		firmware_put(fw, FIRMWARE_UNLOAD);
 
 	return ret;
 }
 
-int ath6kl_init_fetch_firmwares(struct ath6kl *ar)
+int ath6kl_init_fetch_firmwares(struct ath6kl_softc *sc)
 {
 	int ret;
 
-	ret = ath6kl_fetch_board_file(ar);
+	ret = ath6kl_fetch_board_file(sc);
 	if (ret)
 		return ret;
 
+#if 0 /* NOT YET */
 	ret = ath6kl_fetch_testmode_file(ar);
 	if (ret)
 		return ret;
+#endif
 
-	ret = ath6kl_fetch_fw_apin(ar, ATH6KL_FW_API4_FILE);
+	ret = ath6kl_fetch_fw_apin(sc, ATH6KL_FW_API4_FILE);
 	if (ret == 0) {
-		ar->fw_api = 4;
+		sc->sc_fw_api = 4;
+		goto out;
+	}
+	ret = ath6kl_fetch_fw_apin(sc, ATH6KL_FW_API3_FILE);
+	if (ret == 0) {
+		sc->sc_fw_api = 3;
 		goto out;
 	}
 
-	ret = ath6kl_fetch_fw_apin(ar, ATH6KL_FW_API3_FILE);
+	ret = ath6kl_fetch_fw_apin(sc, ATH6KL_FW_API2_FILE);
 	if (ret == 0) {
-		ar->fw_api = 3;
+		sc->sc_fw_api = 2;
 		goto out;
 	}
 
-	ret = ath6kl_fetch_fw_apin(ar, ATH6KL_FW_API2_FILE);
-	if (ret == 0) {
-		ar->fw_api = 2;
-		goto out;
-	}
-
+#if 0 /* NOT YET */
 	ret = ath6kl_fetch_fw_api1(ar);
 	if (ret)
 		return ret;
 
 	ar->fw_api = 1;
+#endif
 
 out:
-	ath6kl_dbg(ATH6KL_DBG_BOOT, "using fw api %d\n", ar->fw_api);
-
+	DPRINTF(sc, ATH6KL_DBG_BOOT, "using fw api %d\n", sc->sc_fw_api);
+	printf("testing: feering firmware\n");
+	if (sc->sc_fw_board != NULL)
+		firmware_put(sc->sc_fw_board, FIRMWARE_UNLOAD);
+	free(sc->sc_fw, M_ATH6KL_FW);
 	return 0;
 }
 
+#if 0 /* NOT YET */
 static int ath6kl_upload_board_file(struct ath6kl *ar)
 {
 	u32 board_address, board_ext_address, param;

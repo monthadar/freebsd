@@ -77,11 +77,18 @@ int ath6kl_core_init(struct ath6kl_softc *sc, enum ath6kl_htc_type htc_type)
 	if (ret)
 		goto err_power_off;
 
+	/* TODO: create HTC layer */
+
+	ret = ath6kl_init_fetch_firmwares(sc);
+	if (ret)
+		goto err_htc_cleanup;
+
 	sc->sc_version.target_ver = le32toh(targ_info.version);
 	sc->sc_target_type = le32toh(targ_info.type);
 
 	return ret;
 
+err_htc_cleanup:
 err_power_off:
 	ath6kl_hif_power_off(sc);
 err_bmi_cleanup:
