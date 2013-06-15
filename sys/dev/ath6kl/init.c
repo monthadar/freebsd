@@ -44,11 +44,13 @@ __FBSDID("$FreeBSD$");
 #include <dev/ath6kl/if_ath6klvar.h>
 #include <dev/ath6kl/if_ath6klreg.h>
 #include <dev/ath6kl/if_ath6klioctl.h>
+#include <dev/ath6kl/wmi.h>
+#include <dev/ath6kl/bmi.h>
+#include <dev/ath6kl/target.h>
 #include <dev/ath6kl/core.h>
 #include <dev/ath6kl/hif.h>
+#include <dev/ath6kl/hif-ops.h>
 #if 0 /* NOT YET */
-#include "target.h"
-#include "hif-ops.h"
 #include "htc-ops.h"
 #endif
 
@@ -537,16 +539,18 @@ static int ath6kl_target_config_wlan_params(struct ath6kl *ar, int idx)
 
 	return ret;
 }
+#endif
 
-int ath6kl_configure_target(struct ath6kl *ar)
+int ath6kl_configure_target(struct ath6kl_softc *sc)
 {
-	u32 param, ram_reserved_size;
-	u8 fw_iftype, fw_mode = 0, fw_submode = 0;
-	int i, status;
+	//u32 param, ram_reserved_size;
+	int i;// status;
+	uint32_t param;
+	uint8_t fw_iftype, fw_mode = 0, fw_submode = 0;
 
-	param = !!(ar->conf_flags & ATH6KL_CONF_UART_DEBUG);
-	if (ath6kl_bmi_write_hi32(ar, hi_serial_enable, param)) {
-		ath6kl_err("bmi_write_memory for uart debug failed\n");
+	param = !!(sc->sc_conf_flags & ATH6KL_CONF_UART_DEBUG); /* XXX: why !! ? */
+	if (ath6kl_bmi_write_hi32(sc, hi_serial_enable, param)) {
+		ath6kl_err("%s\n", "bmi_write_memory for uart debug failed");
 		return -EIO;
 	}
 
@@ -560,7 +564,7 @@ int ath6kl_configure_target(struct ath6kl *ar)
 	 */
 	fw_iftype = HI_OPTION_FW_MODE_BSS_STA;
 
-	for (i = 0; i < ar->vif_max; i++)
+	for (i = 0; i < sc->sc_vif_max; i++)
 		fw_mode |= fw_iftype << (i * HI_OPTION_FW_MODE_BITS);
 
 	/*
@@ -572,52 +576,50 @@ int ath6kl_configure_target(struct ath6kl *ar)
 	 * Otherwise, All the interface are initialized to p2p dev.
 	 */
 
-	if (test_bit(ATH6KL_FW_CAPABILITY_STA_P2PDEV_DUPLEX,
-		     ar->fw_capabilities)) {
-		for (i = 0; i < ar->vif_max; i++)
+	if (isset(sc->sc_fw_capabilities, ATH6KL_FW_CAPABILITY_STA_P2PDEV_DUPLEX)) {
+		for (i = 0; i < sc->sc_vif_max; i++)
 			fw_submode |= HI_OPTION_FW_SUBMODE_P2PDEV <<
 				(i * HI_OPTION_FW_SUBMODE_BITS);
 	} else {
-		for (i = 0; i < ar->max_norm_iface; i++)
+		for (i = 0; i < sc->sc_max_norm_iface; i++)
 			fw_submode |= HI_OPTION_FW_SUBMODE_NONE <<
 				(i * HI_OPTION_FW_SUBMODE_BITS);
 
-		for (i = ar->max_norm_iface; i < ar->vif_max; i++)
+		for (i = sc->sc_max_norm_iface; i < sc->sc_vif_max; i++)
 			fw_submode |= HI_OPTION_FW_SUBMODE_P2PDEV <<
 				(i * HI_OPTION_FW_SUBMODE_BITS);
 
-		if (ar->p2p && ar->vif_max == 1)
+		if (sc->sc_p2p && sc->sc_vif_max == 1)
 			fw_submode = HI_OPTION_FW_SUBMODE_P2PDEV;
 	}
 
-	if (ath6kl_bmi_write_hi32(ar, hi_app_host_interest,
-				  HTC_PROTOCOL_VERSION) != 0) {
-		ath6kl_err("bmi_write_memory for htc version failed\n");
-		return -EIO;
+	if (ath6kl_bmi_write_hi32(sc, hi_app_host_interest, HTC_PROTOCOL_VERSION) != 0) {
+		ath6kl_err("%s\n", "bmi_write_memory for htc version failed");
+		return EIO;
 	}
 
 	/* set the firmware mode to STA/IBSS/AP */
 	param = 0;
 
-	if (ath6kl_bmi_read_hi32(ar, hi_option_flag, &param) != 0) {
-		ath6kl_err("bmi_read_memory for setting fwmode failed\n");
-		return -EIO;
+	if (ath6kl_bmi_read_hi32(sc, hi_option_flag, &param) != 0) {
+		ath6kl_err("%s\n", "bmi_read_memory for setting fwmode failed");
+		return EIO;
 	}
-
-	param |= (ar->vif_max << HI_OPTION_NUM_DEV_SHIFT);
+	param |= (sc->sc_vif_max << HI_OPTION_NUM_DEV_SHIFT);
 	param |= fw_mode << HI_OPTION_FW_MODE_SHIFT;
 	param |= fw_submode << HI_OPTION_FW_SUBMODE_SHIFT;
 
 	param |= (0 << HI_OPTION_MAC_ADDR_METHOD_SHIFT);
 	param |= (0 << HI_OPTION_FW_BRIDGE_SHIFT);
 
-	if (ath6kl_bmi_write_hi32(ar, hi_option_flag, param) != 0) {
-		ath6kl_err("bmi_write_memory for setting fwmode failed\n");
-		return -EIO;
+	if (ath6kl_bmi_write_hi32(sc, hi_option_flag, param) != 0) {
+		ath6kl_err("%s\n", "bmi_write_memory for setting fwmode failed");
+		return EIO;
 	}
 
-	ath6kl_dbg(ATH6KL_DBG_TRC, "firmware mode set\n");
+	DPRINTF(sc, ATH6KL_DBG_TRC, "%s\n", "firmware mode set");
 
+#if 0 /* NOT YET */
 	/*
 	 * Hardcode the address use for the extended board data
 	 * Ideally this should be pre-allocate by the OS at boot time
@@ -642,7 +644,9 @@ int ath6kl_configure_target(struct ath6kl *ar)
 			return -EIO;
 		}
 	}
+#endif
 
+#if 0
 	/* set the block size for the target */
 	if (ath6kl_set_htc_params(ar, MBOX_YIELD_LIMIT, 0))
 		/* use default number of control buffers */
@@ -658,10 +662,11 @@ int ath6kl_configure_target(struct ath6kl *ar)
 	status = ath6kl_bmi_write_hi32(ar, hi_refclk_hz, ar->hw.refclk_hz);
 	if (status)
 		return status;
-
+#endif
 	return 0;
 }
 
+#if 0
 /* firmware upload */
 static int ath6kl_get_fw(struct ath6kl *ar, const char *filename,
 			 u8 **fw, size_t *fw_len)
@@ -1001,7 +1006,7 @@ static int ath6kl_fetch_fw_apin(struct ath6kl_softc *sc, const char *name)
 			if (sc->sc_fw != NULL)
 				break;
 
-			sc->sc_fw = malloc(ie_len, M_ATH6KL_FW, M_WAITOK);
+			sc->sc_fw = malloc(ie_len, M_ATH6KL_FW, M_NOWAIT);
 
 			if (sc->sc_fw == NULL) {
 				ret = ENOMEM;
@@ -1492,22 +1497,22 @@ static const char *ath6kl_init_get_hif_name(enum ath6kl_hif_type type)
 
 	return NULL;
 }
-
-static int __ath6kl_init_hw_start(struct ath6kl *ar)
+#endif
+static int __ath6kl_init_hw_start(struct ath6kl_softc *sc)
 {
-	long timeleft;
-	int ret, i;
+	int ret;
 
-	ath6kl_dbg(ATH6KL_DBG_BOOT, "hw start\n");
+	DPRINTF(sc, ATH6KL_DBG_BOOT, "%s\n", "hw start");
 
-	ret = ath6kl_hif_power_on(ar);
+	ret = ath6kl_hif_power_on(sc);
 	if (ret)
 		return ret;
 
-	ret = ath6kl_configure_target(ar);
+	ret = ath6kl_configure_target(sc);
 	if (ret)
-		goto err_power_off;
-
+		return ret; //goto err_power_off;
+	return 0;
+#if 0
 	ret = ath6kl_init_upload(ar);
 	if (ret)
 		goto err_power_off;
@@ -1599,19 +1604,21 @@ err_power_off:
 	ath6kl_hif_power_off(ar);
 
 	return ret;
+#endif
 }
 
-int ath6kl_init_hw_start(struct ath6kl *ar)
+int ath6kl_init_hw_start(struct ath6kl_softc *sc)
 {
 	int err;
 
-	err = __ath6kl_init_hw_start(ar);
+	err = __ath6kl_init_hw_start(sc);
 	if (err)
 		return err;
-	ar->state = ATH6KL_STATE_ON;
+	sc->sc_state = ATH6KL_STATE_ON;
 	return 0;
 }
 
+#if 0
 static int __ath6kl_init_hw_stop(struct ath6kl *ar)
 {
 	int ret;

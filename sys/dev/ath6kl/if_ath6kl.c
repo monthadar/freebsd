@@ -111,6 +111,8 @@ __FBSDID("$FreeBSD$");
 #include <dev/ath6kl/if_ath6klvar.h>
 #include <dev/ath6kl/if_ath6klreg.h>
 #include <dev/ath6kl/if_ath6klioctl.h>
+#include <dev/ath6kl/bmi.h>
+#include <dev/ath6kl/target.h>
 #include <dev/ath6kl/core.h>
 #include <dev/ath6kl/hif.h>
 

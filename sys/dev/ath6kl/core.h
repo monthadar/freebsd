@@ -168,7 +168,11 @@ enum ath6kl_fw_capability {
 	ATH6KL_FW_CAPABILITY_MAX,
 };
 
+#if 0
+/* XXX: not sure what this is meant to do */
 #define ATH6KL_CAPABILITY_LEN (ALIGN(ATH6KL_FW_CAPABILITY_MAX, 32) / 32)
+#endif
+#define ATH6KL_CAPABILITY_LEN (ATH6KL_FW_CAPABILITY_MAX)
 
 struct ath6kl_fw_ie {
 	uint32_t id;
@@ -363,6 +367,41 @@ enum wmi_phy_cap {
 	WMI_11AGN_CAP = 0x06,
 };
 
+/*
+ * Driver's maximum limit, note that some firmwares support only one vif
+ * and the runtime (current) limit must be checked from ar->vif_max.
+ */
+#define ATH6KL_VIF_MAX	3
+
+/* vif flags info */
+enum ath6kl_vif_state {
+	CONNECTED,
+	CONNECT_PEND,
+	WMM_ENABLED,
+	NETQ_STOPPED,
+	DTIM_EXPIRED,
+	NETDEV_REGISTERED,
+	CLEAR_BSSFILTER_ON_BEACON,
+	DTIM_PERIOD_AVAIL,
+	WLAN_ENABLED,
+	STATS_UPDATE_PEND,
+	HOST_SLEEP_MODE_CMD_PROCESSED,
+	NETDEV_MCAST_ALL_ON,
+	NETDEV_MCAST_ALL_OFF,
+	SCHED_SCANNING,
+};
+
+enum ath6kl_state {
+	ATH6KL_STATE_OFF,
+	ATH6KL_STATE_ON,
+	ATH6KL_STATE_SUSPENDING,
+	ATH6KL_STATE_RESUMING,
+	ATH6KL_STATE_DEEPSLEEP,
+	ATH6KL_STATE_CUTPOWER,
+	ATH6KL_STATE_WOW,
+	ATH6KL_STATE_RECOVERY,
+};
+
 struct ath6kl_softc {
 	struct ifnet			*sc_ifp;
 	device_t			sc_dev;
@@ -375,6 +414,7 @@ struct ath6kl_softc {
 	struct ath6kl_bmi		sc_bmi;
 	const struct ath6kl_hif_ops 	*sc_hif_ops;
 	enum ath6kl_hif_type 		sc_hif_type;
+	uint16_t			sc_conf_flags;
 	struct ath6kl_hw {
 		uint32_t id;
 		const char *name;
@@ -409,12 +449,30 @@ struct ath6kl_softc {
 	unsigned int			sc_fw_len;
 	char				sc_fw_version[32];
 	unsigned int			sc_fw_api;
+	unsigned long			sc_fw_capabilities[ATH6KL_CAPABILITY_LEN];
 	uint32_t                        sc_flags;
 #define	ATH6KL_FLAG_INVALID               (1 << 1)
 #define	ATH6KL_FLAG_INITDONE              (1 << 2)
+	unsigned int			sc_vif_max;
+	uint8_t				sc_max_norm_iface;
+	int				sc_p2p;
+	uint32_t			sc_state;
 	uint32_t			sc_debug;
 	struct ath6kl_stat		sc_stat;
 };
+
+static inline uint32_t
+ath6kl_get_hi_item_addr(struct ath6kl_softc *sc, uint32_t item_offset)
+{
+	uint32_t addr = 0;
+
+	if (sc->sc_target_type == TARGET_TYPE_AR6003)
+		addr = ATH6KL_AR6003_HI_START_ADDR + item_offset;
+	else if (sc->sc_target_type == TARGET_TYPE_AR6004)
+		addr = ATH6KL_AR6004_HI_START_ADDR + item_offset;
+
+	return addr;
+}
 
 int ath6kl_core_create(struct ath6kl_softc *);
 int ath6kl_core_init(struct ath6kl_softc *, enum ath6kl_htc_type);
@@ -422,5 +480,7 @@ void ath6kl_core_cleanup(struct ath6kl_softc *);
 void ath6kl_core_destroy(struct ath6kl_softc *);
 int ath6kl_init_hw_params(struct ath6kl_softc *);
 int ath6kl_init_fetch_firmwares(struct ath6kl_softc *);
+int ath6kl_init_hw_start(struct ath6kl_softc *);
+int ath6kl_configure_target(struct ath6kl_softc *);
 
 #endif /* CORE_H */

@@ -41,10 +41,11 @@
 #include <dev/ath6kl/if_ath6klreg.h>
 #include <dev/ath6kl/if_ath6kldebug.h>
 #include <dev/ath6kl/if_ath6klioctl.h>
+#include <dev/ath6kl/bmi.h>
+#include <dev/ath6kl/target.h>
 #include <dev/ath6kl/core.h>
 #include <dev/ath6kl/hif.h>
 #include <dev/ath6kl/hif-ops.h>
-#include <dev/ath6kl/bmi.h>
 
 int
 ath6kl_bmi_done(struct ath6kl_softc *sc)
@@ -102,6 +103,129 @@ ath6kl_bmi_get_target_info(struct ath6kl_softc *sc,
 
 	DPRINTF(sc, ATH6KL_DBG_BMI, "target info (ver: 0x%x type: 0x%x)\n",
 	    targ_info->version, targ_info->type);
+
+	return 0;
+}
+
+int
+ath6kl_bmi_read(struct ath6kl_softc *sc, uint32_t addr, uint8_t *buf, uint32_t len)
+{
+	uint32_t cid = BMI_READ_MEMORY;
+	int ret;
+	uint32_t offset;
+	uint32_t len_remain, rx_len;
+	uint16_t size;
+
+	if (sc->sc_bmi.done_sent) {
+		ath6kl_err("bmi done sent already, cmd %d disallowed\n", cid);
+		return EACCES;
+	}
+
+	size = sc->sc_bmi.max_data_size + sizeof(cid) + sizeof(addr) + sizeof(len);
+	if (size > sc->sc_bmi.max_cmd_size) {
+		printf("%s: size > sc->sc_bmi.max_cmd_size\n", __func__);
+		return EINVAL;
+	}
+	memset(sc->sc_bmi.cmd_buf, 0, size);
+
+	DPRINTF(sc, ATH6KL_DBG_BMI, "bmi read memory: device: addr: 0x%x, len: %d\n",
+	   addr, len);
+
+	len_remain = len;
+
+	while (len_remain) {
+		rx_len = (len_remain < sc->sc_bmi.max_data_size) ?
+		    len_remain : sc->sc_bmi.max_data_size;
+		offset = 0;
+		memcpy(&(sc->sc_bmi.cmd_buf[offset]), &cid, sizeof(cid));
+		offset += sizeof(cid);
+		memcpy(&(sc->sc_bmi.cmd_buf[offset]), &addr, sizeof(addr));
+		offset += sizeof(addr);
+		memcpy(&(sc->sc_bmi.cmd_buf[offset]), &rx_len, sizeof(rx_len));
+		offset += sizeof(len);
+
+		ret = ath6kl_hif_bmi_write(sc, sc->sc_bmi.cmd_buf, offset);
+		if (ret) {
+			ath6kl_err("Unable to write to the device: %d\n",
+				   ret);
+			return ret;
+		}
+		ret = ath6kl_hif_bmi_read(sc, sc->sc_bmi.cmd_buf, rx_len);
+		if (ret) {
+			ath6kl_err("Unable to read from the device: %d\n",
+				   ret);
+			return ret;
+		}
+		memcpy(&buf[len - len_remain], sc->sc_bmi.cmd_buf, rx_len);
+		len_remain -= rx_len; addr += rx_len;
+	}
+
+	return 0;
+}
+
+int
+ath6kl_bmi_write(struct ath6kl_softc *sc, uint32_t addr, uint8_t *buf, uint32_t len)
+{
+	uint32_t cid = BMI_WRITE_MEMORY;
+	int ret;
+	uint32_t offset;
+	uint32_t len_remain, tx_len;
+	const uint32_t header = sizeof(cid) + sizeof(addr) + sizeof(len);
+	uint8_t aligned_buf[400];
+	uint8_t *src;
+
+	if (sc->sc_bmi.done_sent) {
+		ath6kl_err("bmi done sent already, cmd %d disallowed\n", cid);
+		return -EACCES;
+	}
+
+	if ((sc->sc_bmi.max_data_size + header) > sc->sc_bmi.max_cmd_size) {
+		printf("(sc->sc_bmi.max_data_size + header) > ar->bmi.max_cmd_size\n");
+		return -EINVAL;
+	}
+
+	if (sc->sc_bmi.max_data_size > sizeof(aligned_buf))
+		return -E2BIG;
+
+	memset(sc->sc_bmi.cmd_buf, 0, sc->sc_bmi.max_data_size + header);
+
+	DPRINTF(sc, ATH6KL_DBG_BMI, "bmi write memory: addr: 0x%x, len: %d\n", addr, len);
+
+	len_remain = len;
+	while (len_remain) {
+		src = &buf[len - len_remain];
+
+		if (len_remain < (sc->sc_bmi.max_data_size - header)) {
+			if (len_remain & 3) {
+				/* align it with 4 bytes */
+				len_remain = len_remain +
+					     (4 - (len_remain & 3));
+				memcpy(aligned_buf, src, len_remain);
+				src = aligned_buf;
+			}
+			tx_len = len_remain;
+		} else {
+			tx_len = (sc->sc_bmi.max_data_size - header);
+		}
+
+		offset = 0;
+		memcpy(&(sc->sc_bmi.cmd_buf[offset]), &cid, sizeof(cid));
+		offset += sizeof(cid);
+		memcpy(&(sc->sc_bmi.cmd_buf[offset]), &addr, sizeof(addr));
+		offset += sizeof(addr);
+		memcpy(&(sc->sc_bmi.cmd_buf[offset]), &tx_len, sizeof(tx_len));
+		offset += sizeof(tx_len);
+		memcpy(&(sc->sc_bmi.cmd_buf[offset]), src, tx_len);
+		offset += tx_len;
+
+		ret = ath6kl_hif_bmi_write(sc, sc->sc_bmi.cmd_buf, offset);
+		if (ret) {
+			ath6kl_err("Unable to write to the device: %d\n",
+				   ret);
+			return ret;
+		}
+		len_remain -= tx_len; addr += tx_len;
+	}
 
 	return 0;
 }

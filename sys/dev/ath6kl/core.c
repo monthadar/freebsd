@@ -41,10 +41,11 @@
 #include <dev/ath6kl/if_ath6klreg.h>
 #include <dev/ath6kl/if_ath6kldebug.h>
 #include <dev/ath6kl/if_ath6klioctl.h>
+#include <dev/ath6kl/bmi.h>
+#include <dev/ath6kl/target.h>
 #include <dev/ath6kl/core.h>
 #include <dev/ath6kl/hif.h>
 #include <dev/ath6kl/hif-ops.h>
-#include <dev/ath6kl/bmi.h>
 
 int ath6kl_core_init(struct ath6kl_softc *sc, enum ath6kl_htc_type htc_type)
 {
@@ -83,11 +84,15 @@ int ath6kl_core_init(struct ath6kl_softc *sc, enum ath6kl_htc_type htc_type)
 	if (ret)
 		goto err_htc_cleanup;
 
-	sc->sc_version.target_ver = le32toh(targ_info.version);
-	sc->sc_target_type = le32toh(targ_info.type);
+	ret = ath6kl_init_hw_start(sc);
+	if (ret) {
+		ath6kl_err("Failed to start hardware: %d\n", ret);
+		goto err_rxbuf_cleanup;
+	}
 
 	return ret;
 
+err_rxbuf_cleanup:
 err_htc_cleanup:
 err_power_off:
 	ath6kl_hif_power_off(sc);
@@ -100,6 +105,12 @@ err:
 int
 ath6kl_core_create(struct ath6kl_softc *sc)
 {
+
+	sc->sc_p2p = 0;
+
+	sc->sc_vif_max = 1;
+
+	sc->sc_max_norm_iface = 1;
 
 	return 0;
 }

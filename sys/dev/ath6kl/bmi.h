@@ -231,10 +231,36 @@ struct ath6kl_bmi_target_info {
 	uint32_t type;         /* target type */
 } __packed;
 
+#define ath6kl_bmi_write_hi32(sc, item, val)				\
+	({								\
+		uint32_t addr;						\
+		uint32_t v;						\
+									\
+		addr = ath6kl_get_hi_item_addr(sc, HI_ITEM(item));	\
+		v = htole32(val);					\
+		ath6kl_bmi_write(sc, addr, (uint8_t *) &v, sizeof(v));	\
+	})
+
+#define ath6kl_bmi_read_hi32(sc, item, val)				\
+	({								\
+		uint32_t addr, *check_type = val;				\
+		uint32_t tmp;						\
+		int ret;						\
+									\
+		(void) (check_type == val);				\
+		addr = ath6kl_get_hi_item_addr(sc, HI_ITEM(item));	\
+		ret = ath6kl_bmi_read(sc, addr, (uint8_t *) &tmp, 4);	\
+		*val = le32toh(tmp);				\
+		ret;							\
+	})
+
+struct ath6kl_softc;
 int ath6kl_bmi_init(struct ath6kl_softc *);
 void ath6kl_bmi_cleanup(struct ath6kl_softc *);
 void ath6kl_bmi_reset(struct ath6kl_softc *);
+int ath6kl_bmi_read(struct ath6kl_softc *, uint32_t addr, uint8_t *, uint32_t);
+int ath6kl_bmi_write(struct ath6kl_softc *, uint32_t addr, uint8_t *, uint32_t);
 int ath6kl_bmi_done(struct ath6kl_softc *);
 int ath6kl_bmi_get_target_info(struct ath6kl_softc *,
-    struct ath6kl_bmi_target_info *targ_info);
-#endif
+    struct ath6kl_bmi_target_info *);
+#endif	/* BMI_H */
