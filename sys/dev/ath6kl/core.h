@@ -354,6 +354,18 @@ struct ath6kl_bmi {
 	uint32_t			max_cmd_size;
 };
 
+struct ath6kl_mbox_info {
+	uint32_t htc_addr;
+	uint32_t htc_ext_addr;
+	uint32_t htc_ext_sz;
+
+	uint32_t block_size;
+
+	uint32_t gmbox_addr;
+
+	uint32_t gmbox_sz;
+};
+
 /*
  * WMI_PHY_CAPABILITY
  * TODO: move to wmi.h
@@ -444,6 +456,7 @@ struct ath6kl_softc {
 		const char *fw_board;
 		const char *fw_default_board;
 	}				sc_hw;
+	struct ath6kl_mbox_info 	sc_mbox_info;
 	const struct firmware		*sc_fw_board;
 	uint8_t				*sc_fw;	/* extracted from fw.bin */
 	unsigned int			sc_fw_len;

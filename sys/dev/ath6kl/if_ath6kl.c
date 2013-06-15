@@ -481,9 +481,10 @@ ath6kl_attach(device_t dev)
 		goto err;
 	}
 
-	sc->sc_hif_ops = &ath6kl_usb_ops;
 	sc->sc_hif_type = ATH6KL_HIF_TYPE_USB;
+	sc->sc_hif_ops = &ath6kl_usb_ops;
 	sc->sc_bmi.max_data_size = 252;
+	sc->sc_mbox_info.block_size = 16;
 
 	if (ath6kl_core_init(sc, ATH6KL_HTC_TYPE_PIPE)) {
 		device_printf(dev, "Could not init core\n");

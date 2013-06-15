@@ -415,39 +415,40 @@ void ath6kl_init_control_info(struct ath6kl_vif *vif)
 	memset(vif->wep_key_list, 0, sizeof(vif->wep_key_list));
 	vif->ch_hint = 0;
 }
+#endif
 
 /*
  * Set HTC/Mbox operational parameters, this can only be called when the
  * target is in the BMI phase.
  */
-static int ath6kl_set_htc_params(struct ath6kl *ar, u32 mbox_isr_yield_val,
-				 u8 htc_ctrl_buf)
+static int
+ath6kl_set_htc_params(struct ath6kl_softc *sc, uint32_t mbox_isr_yield_val,
+     uint8_t htc_ctrl_buf)
 {
 	int status;
-	u32 blk_size;
+	uint32_t blk_size;
 
-	blk_size = ar->mbox_info.block_size;
+	blk_size = sc->sc_mbox_info.block_size;
 
 	if (htc_ctrl_buf)
-		blk_size |=  ((u32)htc_ctrl_buf) << 16;
+		blk_size |=  ((uint32_t)htc_ctrl_buf) << 16;
 
 	/* set the host interest area for the block size */
-	status = ath6kl_bmi_write_hi32(ar, hi_mbox_io_block_sz, blk_size);
+	status = ath6kl_bmi_write_hi32(sc, hi_mbox_io_block_sz, blk_size);
 	if (status) {
-		ath6kl_err("bmi_write_memory for IO block size failed\n");
+		ath6kl_err("%s\n", "bmi_write_memory for IO block size failed");
 		goto out;
 	}
 
-	ath6kl_dbg(ATH6KL_DBG_TRC, "block size set: %d (target addr:0x%X)\n",
-		   blk_size,
-		   ath6kl_get_hi_item_addr(ar, HI_ITEM(hi_mbox_io_block_sz)));
+	DPRINTF(sc, ATH6KL_DBG_TRC, "block size set: %d (target addr:0x%X)\n",
+	   blk_size, ath6kl_get_hi_item_addr(sc, HI_ITEM(hi_mbox_io_block_sz)));
 
 	if (mbox_isr_yield_val) {
 		/* set the host interest area for the mbox ISR yield limit */
-		status = ath6kl_bmi_write_hi32(ar, hi_mbox_isr_yield_limit,
-					       mbox_isr_yield_val);
+		status = ath6kl_bmi_write_hi32(sc, hi_mbox_isr_yield_limit,
+		    mbox_isr_yield_val);
 		if (status) {
-			ath6kl_err("bmi_write_memory for yield limit failed\n");
+			ath6kl_err("%s\n", "bmi_write_memory for yield limit failed");
 			goto out;
 		}
 	}
@@ -456,6 +457,7 @@ out:
 	return status;
 }
 
+#if 0
 static int ath6kl_target_config_wlan_params(struct ath6kl *ar, int idx)
 {
 	int ret;
@@ -543,9 +545,8 @@ static int ath6kl_target_config_wlan_params(struct ath6kl *ar, int idx)
 
 int ath6kl_configure_target(struct ath6kl_softc *sc)
 {
-	//u32 param, ram_reserved_size;
-	int i;// status;
-	uint32_t param;
+	uint32_t param, ram_reserved_size;
+	int i, status;
 	uint8_t fw_iftype, fw_mode = 0, fw_submode = 0;
 
 	param = !!(sc->sc_conf_flags & ATH6KL_CONF_UART_DEBUG); /* XXX: why !! ? */
@@ -619,7 +620,6 @@ int ath6kl_configure_target(struct ath6kl_softc *sc)
 
 	DPRINTF(sc, ATH6KL_DBG_TRC, "%s\n", "firmware mode set");
 
-#if 0 /* NOT YET */
 	/*
 	 * Hardcode the address use for the extended board data
 	 * Ideally this should be pre-allocate by the OS at boot time
@@ -629,40 +629,39 @@ int ath6kl_configure_target(struct ath6kl_softc *sc)
 	 * but possible in theory.
 	 */
 
-	if (ar->target_type == TARGET_TYPE_AR6003) {
-		param = ar->hw.board_ext_data_addr;
-		ram_reserved_size = ar->hw.reserved_ram_size;
+	if (sc->sc_target_type == TARGET_TYPE_AR6003) {
+		param = sc->sc_hw.board_ext_data_addr;
+		ram_reserved_size = sc->sc_hw.reserved_ram_size;
 
-		if (ath6kl_bmi_write_hi32(ar, hi_board_ext_data, param) != 0) {
-			ath6kl_err("bmi_write_memory for hi_board_ext_data failed\n");
+		if (ath6kl_bmi_write_hi32(sc, hi_board_ext_data, param) != 0) {
+			ath6kl_err("%s\n",
+			    "bmi_write_memory for hi_board_ext_data failed");
 			return -EIO;
 		}
 
-		if (ath6kl_bmi_write_hi32(ar, hi_end_ram_reserve_sz,
-					  ram_reserved_size) != 0) {
-			ath6kl_err("bmi_write_memory for hi_end_ram_reserve_sz failed\n");
+		if (ath6kl_bmi_write_hi32(sc, hi_end_ram_reserve_sz,
+		  ram_reserved_size) != 0) {
+			ath6kl_err("%s\n",
+			    "bmi_write_memory for hi_end_ram_reserve_sz failed");
 			return -EIO;
 		}
 	}
-#endif
 
-#if 0
 	/* set the block size for the target */
-	if (ath6kl_set_htc_params(ar, MBOX_YIELD_LIMIT, 0))
+	if (ath6kl_set_htc_params(sc, MBOX_YIELD_LIMIT, 0))
 		/* use default number of control buffers */
-		return -EIO;
+		return EIO;
 
 	/* Configure GPIO AR600x UART */
-	status = ath6kl_bmi_write_hi32(ar, hi_dbg_uart_txpin,
-				       ar->hw.uarttx_pin);
+	status = ath6kl_bmi_write_hi32(sc, hi_dbg_uart_txpin, sc->sc_hw.uarttx_pin);
 	if (status)
 		return status;
 
 	/* Configure target refclk_hz */
-	status = ath6kl_bmi_write_hi32(ar, hi_refclk_hz, ar->hw.refclk_hz);
+	status = ath6kl_bmi_write_hi32(sc, hi_refclk_hz, sc->sc_hw.refclk_hz);
 	if (status)
 		return status;
-#endif
+
 	return 0;
 }
 
