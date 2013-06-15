@@ -258,8 +258,10 @@ struct ath6kl_softc;
 int ath6kl_bmi_init(struct ath6kl_softc *);
 void ath6kl_bmi_cleanup(struct ath6kl_softc *);
 void ath6kl_bmi_reset(struct ath6kl_softc *);
-int ath6kl_bmi_read(struct ath6kl_softc *, uint32_t addr, uint8_t *, uint32_t);
-int ath6kl_bmi_write(struct ath6kl_softc *, uint32_t addr, uint8_t *, uint32_t);
+int ath6kl_bmi_read(struct ath6kl_softc *, uint32_t, uint8_t *, uint32_t);
+int ath6kl_bmi_write(struct ath6kl_softc *, uint32_t, const uint8_t *, uint32_t);
+int ath6kl_bmi_reg_read(struct ath6kl_softc *, uint32_t, uint32_t *);
+int ath6kl_bmi_reg_write(struct ath6kl_softc *, uint32_t, uint32_t);
 int ath6kl_bmi_done(struct ath6kl_softc *);
 int ath6kl_bmi_get_target_info(struct ath6kl_softc *,
     struct ath6kl_bmi_target_info *);

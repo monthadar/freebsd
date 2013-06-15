@@ -164,7 +164,8 @@ ath6kl_bmi_read(struct ath6kl_softc *sc, uint32_t addr, uint8_t *buf, uint32_t l
 }
 
 int
-ath6kl_bmi_write(struct ath6kl_softc *sc, uint32_t addr, uint8_t *buf, uint32_t len)
+ath6kl_bmi_write(struct ath6kl_softc *sc, uint32_t addr, const uint8_t *buf,
+    uint32_t len)
 {
 	uint32_t cid = BMI_WRITE_MEMORY;
 	int ret;
@@ -172,7 +173,7 @@ ath6kl_bmi_write(struct ath6kl_softc *sc, uint32_t addr, uint8_t *buf, uint32_t 
 	uint32_t len_remain, tx_len;
 	const uint32_t header = sizeof(cid) + sizeof(addr) + sizeof(len);
 	uint8_t aligned_buf[400];
-	uint8_t *src;
+	const uint8_t *src;
 
 	if (sc->sc_bmi.done_sent) {
 		ath6kl_err("bmi done sent already, cmd %d disallowed\n", cid);
@@ -225,6 +226,88 @@ ath6kl_bmi_write(struct ath6kl_softc *sc, uint32_t addr, uint8_t *buf, uint32_t 
 			return ret;
 		}
 		len_remain -= tx_len; addr += tx_len;
+	}
+
+	return 0;
+}
+
+int ath6kl_bmi_reg_read(struct ath6kl_softc *sc, uint32_t addr, uint32_t *param)
+{
+	uint32_t cid = BMI_READ_SOC_REGISTER;
+	int ret;
+	uint32_t offset;
+	uint16_t size;
+
+	if (sc->sc_bmi.done_sent) {
+		ath6kl_err("bmi done sent already, cmd %d disallowed\n", cid);
+		return -EACCES;
+	}
+
+	size = sizeof(cid) + sizeof(addr);
+	if (size > sc->sc_bmi.max_cmd_size) {
+		printf("%s: size > sc->sc_bmi.max_cmd_size\n", __func__);
+		return EINVAL;
+	}
+	memset(sc->sc_bmi.cmd_buf, 0, size);
+
+	DPRINTF(sc, ATH6KL_DBG_BMI, "bmi read SOC reg: addr: 0x%x\n", addr);
+
+	offset = 0;
+	memcpy(&(sc->sc_bmi.cmd_buf[offset]), &cid, sizeof(cid));
+	offset += sizeof(cid);
+	memcpy(&(sc->sc_bmi.cmd_buf[offset]), &addr, sizeof(addr));
+	offset += sizeof(addr);
+
+	ret = ath6kl_hif_bmi_write(sc, sc->sc_bmi.cmd_buf, offset);
+	if (ret) {
+		ath6kl_err("Unable to write to the device: %d\n", ret);
+		return ret;
+	}
+
+	ret = ath6kl_hif_bmi_read(sc, sc->sc_bmi.cmd_buf, sizeof(*param));
+	if (ret) {
+		ath6kl_err("Unable to read from the device: %d\n", ret);
+		return ret;
+	}
+	memcpy(param, sc->sc_bmi.cmd_buf, sizeof(*param));
+
+	return 0;
+}
+
+int ath6kl_bmi_reg_write(struct ath6kl_softc *sc, uint32_t addr, uint32_t param)
+{
+	uint32_t cid = BMI_WRITE_SOC_REGISTER;
+	int ret;
+	uint32_t offset;
+	uint16_t size;
+
+	if (sc->sc_bmi.done_sent) {
+		ath6kl_err("bmi done sent already, cmd %d disallowed\n", cid);
+		return EACCES;
+	}
+
+	size = sizeof(cid) + sizeof(addr) + sizeof(param);
+	if (size > sc->sc_bmi.max_cmd_size) {
+		printf("%s: size > sc->sc_bmi.max_cmd_size\n", __func__);
+		return EINVAL;
+	}
+	memset(sc->sc_bmi.cmd_buf, 0, size);
+
+	DPRINTF(sc, ATH6KL_DBG_BMI, "bmi write SOC reg: addr: 0x%x, param: %d\n",
+	    addr, param);
+
+	offset = 0;
+	memcpy(&(sc->sc_bmi.cmd_buf[offset]), &cid, sizeof(cid));
+	offset += sizeof(cid);
+	memcpy(&(sc->sc_bmi.cmd_buf[offset]), &addr, sizeof(addr));
+	offset += sizeof(addr);
+	memcpy(&(sc->sc_bmi.cmd_buf[offset]), &param, sizeof(param));
+	offset += sizeof(param);
+
+	ret = ath6kl_hif_bmi_write(sc, sc->sc_bmi.cmd_buf, offset);
+	if (ret) {
+		ath6kl_err("Unable to write to the device: %d\n", ret);
+		return ret;
 	}
 
 	return 0;

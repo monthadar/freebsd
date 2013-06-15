@@ -1088,43 +1088,44 @@ out:
 	return 0;
 }
 
-#if 0 /* NOT YET */
-static int ath6kl_upload_board_file(struct ath6kl *ar)
+static int
+ath6kl_upload_board_file(struct ath6kl_softc *sc)
 {
-	u32 board_address, board_ext_address, param;
-	u32 board_data_size, board_ext_data_size;
+	uint32_t board_address, board_ext_address, param;
+	uint32_t board_data_size, board_ext_data_size;
 	int ret;
 
-	if (WARN_ON(ar->fw_board == NULL))
-		return -ENOENT;
+	if (sc->sc_fw_board == NULL) {
+		printf("firmware board is NULL!\n");
+		return ENOENT;
+	}
 
 	/*
 	 * Determine where in Target RAM to write Board Data.
 	 * For AR6004, host determine Target RAM address for
 	 * writing board data.
 	 */
-	if (ar->hw.board_addr != 0) {
-		board_address = ar->hw.board_addr;
-		ath6kl_bmi_write_hi32(ar, hi_board_data,
-				      board_address);
+	if (sc->sc_hw.board_addr != 0) {
+		board_address = sc->sc_hw.board_addr;
+		ath6kl_bmi_write_hi32(sc, hi_board_data, board_address);
 	} else {
-		ath6kl_bmi_read_hi32(ar, hi_board_data, &board_address);
+		ath6kl_bmi_read_hi32(sc, hi_board_data, &board_address);
 	}
 
 	/* determine where in target ram to write extended board data */
-	ath6kl_bmi_read_hi32(ar, hi_board_ext_data, &board_ext_address);
+	ath6kl_bmi_read_hi32(sc, hi_board_ext_data, &board_ext_address);
 
-	if (ar->target_type == TARGET_TYPE_AR6003 &&
+	if (sc->sc_target_type == TARGET_TYPE_AR6003 &&
 	    board_ext_address == 0) {
-		ath6kl_err("Failed to get board file target address.\n");
-		return -EINVAL;
+		ath6kl_err("%s\n", "Failed to get board file target address.");
+		return EINVAL;
 	}
-
-	switch (ar->target_type) {
+	switch (sc->sc_target_type) {
 	case TARGET_TYPE_AR6003:
 		board_data_size = AR6003_BOARD_DATA_SZ;
 		board_ext_data_size = AR6003_BOARD_EXT_DATA_SZ;
-		if (ar->fw_board_len > (board_data_size + board_ext_data_size))
+		if (sc->sc_fw_board->datasize >
+		    (board_data_size + board_ext_data_size))
 			board_ext_data_size = AR6003_BOARD_EXT_DATA_SZ_V2;
 		break;
 	case TARGET_TYPE_AR6004:
@@ -1132,44 +1133,45 @@ static int ath6kl_upload_board_file(struct ath6kl *ar)
 		board_ext_data_size = AR6004_BOARD_EXT_DATA_SZ;
 		break;
 	default:
-		WARN_ON(1);
-		return -EINVAL;
+		printf("%s: unsupported\n", __func__);
+		return EINVAL;
 		break;
 	}
 
 	if (board_ext_address &&
-	    ar->fw_board_len == (board_data_size + board_ext_data_size)) {
+	    sc->sc_fw_board->datasize == (board_data_size + board_ext_data_size)) {
 
 		/* write extended board data */
-		ath6kl_dbg(ATH6KL_DBG_BOOT,
-			   "writing extended board data to 0x%x (%d B)\n",
-			   board_ext_address, board_ext_data_size);
+		DPRINTF(sc, ATH6KL_DBG_BOOT,
+		   "writing extended board data to 0x%x (%d B)\n",
+		   board_ext_address, board_ext_data_size);
 
-		ret = ath6kl_bmi_write(ar, board_ext_address,
-				       ar->fw_board + board_data_size,
-				       board_ext_data_size);
+		ret = ath6kl_bmi_write(sc, board_ext_address,
+		    (uint8_t *)sc->sc_fw_board->data + board_data_size,
+		    board_ext_data_size);
 		if (ret) {
 			ath6kl_err("Failed to write extended board data: %d\n",
-				   ret);
+			   ret);
 			return ret;
 		}
 
 		/* record that extended board data is initialized */
 		param = (board_ext_data_size << 16) | 1;
 
-		ath6kl_bmi_write_hi32(ar, hi_board_ext_data_config, param);
+		ath6kl_bmi_write_hi32(sc, hi_board_ext_data_config, param);
 	}
 
-	if (ar->fw_board_len < board_data_size) {
-		ath6kl_err("Too small board file: %zu\n", ar->fw_board_len);
+	if (sc->sc_fw_board->datasize < board_data_size) {
+		ath6kl_err("Too small board file: %zu\n",
+		    sc->sc_fw_board->datasize);
 		ret = -EINVAL;
 		return ret;
 	}
 
-	ath6kl_dbg(ATH6KL_DBG_BOOT, "writing board file to 0x%x (%d B)\n",
-		   board_address, board_data_size);
+	DPRINTF(sc, ATH6KL_DBG_BOOT, "writing board file to 0x%x (%d B)\n",
+	   board_address, board_data_size);
 
-	ret = ath6kl_bmi_write(ar, board_address, ar->fw_board,
+	ret = ath6kl_bmi_write(sc, board_address, (const uint8_t *)sc->sc_fw_board->data,
 			       board_data_size);
 
 	if (ret) {
@@ -1178,11 +1180,12 @@ static int ath6kl_upload_board_file(struct ath6kl *ar)
 	}
 
 	/* record the fact that Board Data IS initialized */
-	ath6kl_bmi_write_hi32(ar, hi_board_data_initialized, 1);
+	ath6kl_bmi_write_hi32(sc, hi_board_data_initialized, 1);
 
 	return ret;
 }
 
+#if 0 /* NOT YET */
 static int ath6kl_upload_otp(struct ath6kl *ar)
 {
 	u32 address, param;
@@ -1314,48 +1317,50 @@ static int ath6kl_upload_testscript(struct ath6kl *ar)
 
 	return 0;
 }
+#endif
 
-static int ath6kl_init_upload(struct ath6kl *ar)
+static int ath6kl_init_upload(struct ath6kl_softc *sc)
 {
-	u32 param, options, sleep, address;
+	uint32_t param, options, sleep, address;
 	int status = 0;
 
-	if (ar->target_type != TARGET_TYPE_AR6003 &&
-	    ar->target_type != TARGET_TYPE_AR6004)
+	if (sc->sc_target_type != TARGET_TYPE_AR6003 &&
+	    sc->sc_target_type != TARGET_TYPE_AR6004)
 		return -EINVAL;
 
 	/* temporarily disable system sleep */
 	address = MBOX_BASE_ADDRESS + LOCAL_SCRATCH_ADDRESS;
-	status = ath6kl_bmi_reg_read(ar, address, &param);
+	status = ath6kl_bmi_reg_read(sc, address, &param);
 	if (status)
 		return status;
 
 	options = param;
 
 	param |= ATH6KL_OPTION_SLEEP_DISABLE;
-	status = ath6kl_bmi_reg_write(ar, address, param);
+	status = ath6kl_bmi_reg_write(sc, address, param);
 	if (status)
 		return status;
 
 	address = RTC_BASE_ADDRESS + SYSTEM_SLEEP_ADDRESS;
-	status = ath6kl_bmi_reg_read(ar, address, &param);
+	status = ath6kl_bmi_reg_read(sc, address, &param);
 	if (status)
 		return status;
 
 	sleep = param;
 
 	param |= SM(SYSTEM_SLEEP_DISABLE, 1);
-	status = ath6kl_bmi_reg_write(ar, address, param);
+	status = ath6kl_bmi_reg_write(sc, address, param);
 	if (status)
 		return status;
 
-	ath6kl_dbg(ATH6KL_DBG_TRC, "old options: %d, old sleep: %d\n",
-		   options, sleep);
+	DPRINTF(sc, ATH6KL_DBG_TRC, "old options: %d, old sleep: %d\n",
+	   options, sleep);
 
+#if 0 /* NOT YET */
 	/* program analog PLL register */
 	/* no need to control 40/44MHz clock on AR6004 */
-	if (ar->target_type != TARGET_TYPE_AR6004) {
-		status = ath6kl_bmi_reg_write(ar, ATH6KL_ANALOG_PLL_REGISTER,
+	if (sc->sc_target_type != TARGET_TYPE_AR6004) {
+		status = ath6kl_bmi_reg_write(sc, ATH6KL_ANALOG_PLL_REGISTER,
 					      0xF9104001);
 
 		if (status)
@@ -1365,56 +1370,57 @@ static int ath6kl_init_upload(struct ath6kl *ar)
 		param = SM(CPU_CLOCK_STANDARD, 1);
 
 		address = RTC_BASE_ADDRESS + CPU_CLOCK_ADDRESS;
-		status = ath6kl_bmi_reg_write(ar, address, param);
+		status = ath6kl_bmi_reg_write(sc, address, param);
 		if (status)
 			return status;
 	}
+#endif
 
 	param = 0;
 	address = RTC_BASE_ADDRESS + LPO_CAL_ADDRESS;
 	param = SM(LPO_CAL_ENABLE, 1);
-	status = ath6kl_bmi_reg_write(ar, address, param);
+	status = ath6kl_bmi_reg_write(sc, address, param);
 	if (status)
 		return status;
 
 	/* WAR to avoid SDIO CRC err */
-	if (ar->hw.flags & ATH6KL_HW_SDIO_CRC_ERROR_WAR) {
-		ath6kl_err("temporary war to avoid sdio crc error\n");
+	if (sc->sc_hw.flags & ATH6KL_HW_SDIO_CRC_ERROR_WAR) {
+		ath6kl_err("%s\n", "temporary war to avoid sdio crc error");
 
 		param = 0x28;
 		address = GPIO_BASE_ADDRESS + GPIO_PIN9_ADDRESS;
-		status = ath6kl_bmi_reg_write(ar, address, param);
+		status = ath6kl_bmi_reg_write(sc, address, param);
 		if (status)
 			return status;
 
 		param = 0x20;
 
 		address = GPIO_BASE_ADDRESS + GPIO_PIN10_ADDRESS;
-		status = ath6kl_bmi_reg_write(ar, address, param);
+		status = ath6kl_bmi_reg_write(sc, address, param);
 		if (status)
 			return status;
 
 		address = GPIO_BASE_ADDRESS + GPIO_PIN11_ADDRESS;
-		status = ath6kl_bmi_reg_write(ar, address, param);
+		status = ath6kl_bmi_reg_write(sc, address, param);
 		if (status)
 			return status;
 
 		address = GPIO_BASE_ADDRESS + GPIO_PIN12_ADDRESS;
-		status = ath6kl_bmi_reg_write(ar, address, param);
+		status = ath6kl_bmi_reg_write(sc, address, param);
 		if (status)
 			return status;
 
 		address = GPIO_BASE_ADDRESS + GPIO_PIN13_ADDRESS;
-		status = ath6kl_bmi_reg_write(ar, address, param);
+		status = ath6kl_bmi_reg_write(sc, address, param);
 		if (status)
 			return status;
 	}
-
 	/* write EEPROM data to Target RAM */
-	status = ath6kl_upload_board_file(ar);
+	status = ath6kl_upload_board_file(sc);
 	if (status)
 		return status;
 
+#if 0
 	/* transfer One time Programmable data */
 	status = ath6kl_upload_otp(ar);
 	if (status)
@@ -1436,19 +1442,20 @@ static int ath6kl_init_upload(struct ath6kl *ar)
 
 	/* Restore system sleep */
 	address = RTC_BASE_ADDRESS + SYSTEM_SLEEP_ADDRESS;
-	status = ath6kl_bmi_reg_write(ar, address, sleep);
+	status = ath6kl_bmi_reg_write(sc, address, sleep);
 	if (status)
 		return status;
 
 	address = MBOX_BASE_ADDRESS + LOCAL_SCRATCH_ADDRESS;
 	param = options | 0x20;
-	status = ath6kl_bmi_reg_write(ar, address, param);
+	status = ath6kl_bmi_reg_write(sc, address, param);
 	if (status)
 		return status;
 
 	return status;
-}
 #endif
+	return 0; //MONTHADAR
+}
 
 int ath6kl_init_hw_params(struct ath6kl_softc *ar)
 {
@@ -1510,12 +1517,12 @@ static int __ath6kl_init_hw_start(struct ath6kl_softc *sc)
 	ret = ath6kl_configure_target(sc);
 	if (ret)
 		return ret; //goto err_power_off;
-	return 0;
-#if 0
-	ret = ath6kl_init_upload(ar);
+
+	ret = ath6kl_init_upload(sc);
 	if (ret)
 		goto err_power_off;
 
+#if 0
 	/* Do we need to finish the BMI phase */
 	/* FIXME: return error from ath6kl_bmi_done() */
 	if (ath6kl_bmi_done(ar)) {
@@ -1599,11 +1606,12 @@ err_htc_stop:
 	ath6kl_htc_stop(ar->htc_target);
 err_cleanup_scatter:
 	ath6kl_hif_cleanup_scatter(ar);
+#endif
+	return 0;
 err_power_off:
-	ath6kl_hif_power_off(ar);
+	ath6kl_hif_power_off(sc);
 
 	return ret;
-#endif
 }
 
 int ath6kl_init_hw_start(struct ath6kl_softc *sc)
