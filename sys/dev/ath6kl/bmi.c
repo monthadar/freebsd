@@ -78,7 +78,7 @@ ath6kl_bmi_get_target_info(struct ath6kl_softc *sc,
 
 	if (sc->sc_bmi.done_sent) {
 		ath6kl_err("bmi done sent already, cmd %d disallowed\n", cid);
-		return -EACCES;
+		return EACCES;
 	}
 
 	ret = ath6kl_hif_bmi_write(sc, (uint8_t *)&cid, sizeof(cid));
@@ -177,16 +177,16 @@ ath6kl_bmi_write(struct ath6kl_softc *sc, uint32_t addr, const uint8_t *buf,
 
 	if (sc->sc_bmi.done_sent) {
 		ath6kl_err("bmi done sent already, cmd %d disallowed\n", cid);
-		return -EACCES;
+		return EACCES;
 	}
 
 	if ((sc->sc_bmi.max_data_size + header) > sc->sc_bmi.max_cmd_size) {
-		printf("(sc->sc_bmi.max_data_size + header) > ar->bmi.max_cmd_size\n");
-		return -EINVAL;
+		printf("(sc->sc_bmi.max_data_size + header) > sc->sc_bmi.max_cmd_size\n");
+		return EINVAL;
 	}
 
 	if (sc->sc_bmi.max_data_size > sizeof(aligned_buf))
-		return -E2BIG;
+		return E2BIG;
 
 	memset(sc->sc_bmi.cmd_buf, 0, sc->sc_bmi.max_data_size + header);
 
@@ -240,7 +240,7 @@ int ath6kl_bmi_reg_read(struct ath6kl_softc *sc, uint32_t addr, uint32_t *param)
 
 	if (sc->sc_bmi.done_sent) {
 		ath6kl_err("bmi done sent already, cmd %d disallowed\n", cid);
-		return -EACCES;
+		return EACCES;
 	}
 
 	size = sizeof(cid) + sizeof(addr);
@@ -313,6 +313,129 @@ int ath6kl_bmi_reg_write(struct ath6kl_softc *sc, uint32_t addr, uint32_t param)
 	return 0;
 }
 
+int
+ath6kl_bmi_lz_data(struct ath6kl_softc *sc, uint8_t *buf, uint32_t len)
+{
+	uint32_t cid = BMI_LZ_DATA;
+	int ret;
+	uint32_t offset;
+	uint32_t len_remain, tx_len;
+	const uint32_t header = sizeof(cid) + sizeof(len);
+	uint16_t size;
+
+	if (sc->sc_bmi.done_sent) {
+		ath6kl_err("bmi done sent already, cmd %d disallowed\n", cid);
+		return EACCES;
+	}
+
+	size = sc->sc_bmi.max_data_size + header;
+	if (size > sc->sc_bmi.max_cmd_size) {
+		printf("%s: size > sc->sc_bmi.max_cmd_size\n", __func__);
+		return EINVAL;
+	}
+	memset(sc->sc_bmi.cmd_buf, 0, size);
+
+	DPRINTF(sc, ATH6KL_DBG_BMI, "bmi send LZ data: len: %d)\n", len);
+
+	len_remain = len;
+	while (len_remain) {
+		tx_len = (len_remain < (sc->sc_bmi.max_data_size - header)) ?
+			  len_remain : (sc->sc_bmi.max_data_size - header);
+
+		offset = 0;
+		memcpy(&(sc->sc_bmi.cmd_buf[offset]), &cid, sizeof(cid));
+		offset += sizeof(cid);
+		memcpy(&(sc->sc_bmi.cmd_buf[offset]), &tx_len, sizeof(tx_len));
+		offset += sizeof(tx_len);
+		memcpy(&(sc->sc_bmi.cmd_buf[offset]), &buf[len - len_remain],
+		       tx_len);
+		offset += tx_len;
+
+		ret = ath6kl_hif_bmi_write(sc, sc->sc_bmi.cmd_buf, offset);
+		if (ret) {
+			ath6kl_err("Unable to write to the device: %d\n",
+				   ret);
+			return ret;
+		}
+
+		len_remain -= tx_len;
+	}
+
+	return 0;
+}
+
+int
+ath6kl_bmi_lz_stream_start(struct ath6kl_softc *sc, uint32_t addr)
+{
+	uint32_t cid = BMI_LZ_STREAM_START;
+	int ret;
+	uint32_t offset;
+	uint16_t size;
+
+	if (sc->sc_bmi.done_sent) {
+		ath6kl_err("bmi done sent already, cmd %d disallowed\n", cid);
+		return EACCES;
+	}
+
+	size = sizeof(cid) + sizeof(addr);
+	if (size > sc->sc_bmi.max_cmd_size) {
+		printf("%s: size > sc->sc_bmi.max_cmd_size\n", __func__);
+		return EINVAL;
+	}
+	memset(sc->sc_bmi.cmd_buf, 0, size);
+
+	DPRINTF(sc, ATH6KL_DBG_BMI, "bmi LZ stream start: addr: 0x%x)\n",
+	    addr);
+
+	offset = 0;
+	memcpy(&(sc->sc_bmi.cmd_buf[offset]), &cid, sizeof(cid));
+	offset += sizeof(cid);
+	memcpy(&(sc->sc_bmi.cmd_buf[offset]), &addr, sizeof(addr));
+	offset += sizeof(addr);
+	return 0;
+
+	ret = ath6kl_hif_bmi_write(sc, sc->sc_bmi.cmd_buf, offset);
+	if (ret) {
+		ath6kl_err("Unable to start LZ stream to the device: %d\n",
+		   ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+int
+ath6kl_bmi_fast_download(struct ath6kl_softc *sc, uint32_t addr, uint8_t *buf,
+    uint32_t len)
+{
+	int ret;
+	uint32_t last_word = 0;
+	uint32_t last_word_offset = len & ~0x3;
+	uint32_t unaligned_bytes = len & 0x3;
+
+	ret = ath6kl_bmi_lz_stream_start(sc, addr);
+	if (ret)
+		return ret;
+	if (unaligned_bytes) {
+		/* copy the last word into a zero padded buffer */
+		memcpy(&last_word, &buf[last_word_offset], unaligned_bytes);
+	}
+
+	ret = ath6kl_bmi_lz_data(sc, buf, last_word_offset);
+	if (ret)
+		return ret;
+
+	if (unaligned_bytes)
+		ret = ath6kl_bmi_lz_data(sc, (uint8_t *)&last_word, 4);
+
+	if (!ret) {
+		/* Close compressed stream and open a new (fake) one.
+		 * This serves mainly to flush Target caches. */
+		ret = ath6kl_bmi_lz_stream_start(sc, 0x00);
+	}
+	return ret;
+}
+
 void
 ath6kl_bmi_reset(struct ath6kl_softc *sc)
 {
@@ -325,7 +448,7 @@ ath6kl_bmi_init(struct ath6kl_softc *sc)
 {
 
 	if (sc->sc_bmi.max_data_size == 0)
-		return -EINVAL;
+		return EINVAL;
 
 	/* cmd + addr + len + data_size */
 	sc->sc_bmi.max_cmd_size = sc->sc_bmi.max_data_size +
@@ -334,7 +457,7 @@ ath6kl_bmi_init(struct ath6kl_softc *sc)
 	sc->sc_bmi.cmd_buf = malloc(sc->sc_bmi.max_cmd_size, M_TEMP,
 	    M_NOWAIT | M_ZERO);
 	if (!sc->sc_bmi.cmd_buf)
-		return -ENOMEM;
+		return ENOMEM;
 
 	return 0;
 }

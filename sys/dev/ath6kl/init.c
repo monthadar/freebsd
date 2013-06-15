@@ -1006,6 +1006,7 @@ static int ath6kl_fetch_fw_apin(struct ath6kl_softc *sc, const char *name)
 				break;
 
 			sc->sc_fw = malloc(ie_len, M_ATH6KL_FW, M_NOWAIT);
+			printf("sc->sc_fw %p\n", sc->sc_fw);
 
 			if (sc->sc_fw == NULL) {
 				ret = ENOMEM;
@@ -1034,8 +1035,8 @@ static int ath6kl_fetch_fw_apin(struct ath6kl_softc *sc, const char *name)
 	};
 	ret = 0;
 out:
-	if (fw != NULL)
-		firmware_put(fw, FIRMWARE_UNLOAD);
+	//if (fw != NULL)
+	//	firmware_put(fw, FIRMWARE_UNLOAD);
 
 	return ret;
 }
@@ -1081,10 +1082,6 @@ int ath6kl_init_fetch_firmwares(struct ath6kl_softc *sc)
 
 out:
 	DPRINTF(sc, ATH6KL_DBG_BOOT, "using fw api %d\n", sc->sc_fw_api);
-	printf("testing: feering firmware\n");
-	if (sc->sc_fw_board != NULL)
-		firmware_put(sc->sc_fw_board, FIRMWARE_UNLOAD);
-	free(sc->sc_fw, M_ATH6KL_FW);
 	return 0;
 }
 
@@ -1232,38 +1229,45 @@ static int ath6kl_upload_otp(struct ath6kl *ar)
 
 	return ret;
 }
+#endif
 
-static int ath6kl_upload_firmware(struct ath6kl *ar)
+static int
+ath6kl_upload_firmware(struct ath6kl_softc *sc)
 {
-	u32 address;
+	uint32_t address;
 	int ret;
 
-	if (WARN_ON(ar->fw == NULL))
+	if (sc->sc_fw == NULL) {
+		printf("firmware should not be NULL\n");
 		return 0;
+	}
 
-	address = ar->hw.app_load_addr;
+	address = sc->sc_hw.app_load_addr;
 
-	ath6kl_dbg(ATH6KL_DBG_BOOT, "writing firmware to 0x%x (%zd B)\n",
-		   address, ar->fw_len);
+	DPRINTF(sc, ATH6KL_DBG_BOOT, "writing firmware to 0x%x (%zd B)\n",
+	   address, sc->sc_fw_len);
 
-	ret = ath6kl_bmi_fast_download(ar, address, ar->fw, ar->fw_len);
+	ret = ath6kl_bmi_fast_download(sc, address, sc->sc_fw, sc->sc_fw_len);
 
 	if (ret) {
 		ath6kl_err("Failed to write firmware: %d\n", ret);
 		return ret;
 	}
 
+#if 0 /* NOT YET */
 	/*
 	 * Set starting address for firmware
 	 * Don't need to setup app_start override addr on AR6004
 	 */
-	if (ar->target_type != TARGET_TYPE_AR6004) {
-		address = ar->hw.app_start_override_addr;
-		ath6kl_bmi_set_app_start(ar, address);
+	if (sc->target_type != TARGET_TYPE_AR6004) {
+		address = sc->hw.app_start_override_addr;
+		ath6kl_bmi_set_app_start(sc, address);
 	}
+#endif
 	return ret;
 }
 
+#if 0
 static int ath6kl_upload_patch(struct ath6kl *ar)
 {
 	u32 address;
@@ -1420,17 +1424,19 @@ static int ath6kl_init_upload(struct ath6kl_softc *sc)
 	if (status)
 		return status;
 
-#if 0
+#if 0 /* NOT YET */
 	/* transfer One time Programmable data */
-	status = ath6kl_upload_otp(ar);
+	status = ath6kl_upload_otp(sc);
 	if (status)
 		return status;
+#endif
 
 	/* Download Target firmware */
-	status = ath6kl_upload_firmware(ar);
+	status = ath6kl_upload_firmware(sc);
 	if (status)
 		return status;
 
+#if 0
 	status = ath6kl_upload_patch(ar);
 	if (status)
 		return status;

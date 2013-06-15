@@ -262,6 +262,9 @@ int ath6kl_bmi_read(struct ath6kl_softc *, uint32_t, uint8_t *, uint32_t);
 int ath6kl_bmi_write(struct ath6kl_softc *, uint32_t, const uint8_t *, uint32_t);
 int ath6kl_bmi_reg_read(struct ath6kl_softc *, uint32_t, uint32_t *);
 int ath6kl_bmi_reg_write(struct ath6kl_softc *, uint32_t, uint32_t);
+int ath6kl_bmi_lz_data(struct ath6kl_softc *, uint8_t *, uint32_t);
+int ath6kl_bmi_lz_stream_start(struct ath6kl_softc *, uint32_t);
+int ath6kl_bmi_fast_download(struct ath6kl_softc *, uint32_t, uint8_t *, uint32_t);
 int ath6kl_bmi_done(struct ath6kl_softc *);
 int ath6kl_bmi_get_target_info(struct ath6kl_softc *,
     struct ath6kl_bmi_target_info *);
