@@ -1436,7 +1436,7 @@ static int ath6kl_init_upload(struct ath6kl_softc *sc)
 	if (status)
 		return status;
 
-#if 0
+#if 0	/* NOT YET */
 	status = ath6kl_upload_patch(ar);
 	if (status)
 		return status;
@@ -1445,6 +1445,7 @@ static int ath6kl_init_upload(struct ath6kl_softc *sc)
 	status = ath6kl_upload_testscript(ar);
 	if (status)
 		return status;
+#endif
 
 	/* Restore system sleep */
 	address = RTC_BASE_ADDRESS + SYSTEM_SLEEP_ADDRESS;
@@ -1459,8 +1460,6 @@ static int ath6kl_init_upload(struct ath6kl_softc *sc)
 		return status;
 
 	return status;
-#endif
-	return 0; //MONTHADAR
 }
 
 int ath6kl_init_hw_params(struct ath6kl_softc *ar)
@@ -1528,14 +1527,14 @@ static int __ath6kl_init_hw_start(struct ath6kl_softc *sc)
 	if (ret)
 		goto err_power_off;
 
-#if 0
 	/* Do we need to finish the BMI phase */
 	/* FIXME: return error from ath6kl_bmi_done() */
-	if (ath6kl_bmi_done(ar)) {
+	if (ath6kl_bmi_done(sc)) {
 		ret = -EIO;
 		goto err_power_off;
 	}
 
+#if 0
 	/*
 	 * The reason we have to wait for the target here is that the
 	 * driver layer has to init BMI in order to set the host block
