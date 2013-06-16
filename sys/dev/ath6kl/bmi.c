@@ -392,7 +392,6 @@ ath6kl_bmi_lz_stream_start(struct ath6kl_softc *sc, uint32_t addr)
 	offset += sizeof(cid);
 	memcpy(&(sc->sc_bmi.cmd_buf[offset]), &addr, sizeof(addr));
 	offset += sizeof(addr);
-	return 0;
 
 	ret = ath6kl_hif_bmi_write(sc, sc->sc_bmi.cmd_buf, offset);
 	if (ret) {
