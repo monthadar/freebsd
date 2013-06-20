@@ -29,6 +29,8 @@
 #include <sys/sysctl.h>
 #include <sys/lock.h>
 #include <sys/mutex.h>
+#include <sys/condvar.h>
+#include <sys/sema.h>
 #include <sys/mbuf.h>
 #include <sys/kernel.h>
 #include <sys/socket.h>
@@ -43,6 +45,7 @@
 #include <dev/ath6kl/if_ath6klioctl.h>
 #include <dev/ath6kl/bmi.h>
 #include <dev/ath6kl/target.h>
+#include <dev/ath6kl/wmi.h>
 #include <dev/ath6kl/core.h>
 #include <dev/ath6kl/hif.h>
 #include <dev/ath6kl/hif-ops.h>
@@ -52,7 +55,18 @@ int ath6kl_core_init(struct ath6kl_softc *sc, enum ath6kl_htc_type htc_type)
 	struct ath6kl_bmi_target_info targ_info;
 	int ret = 0;
 
-	/* TODO: attach HTC layer */
+	switch (htc_type) {
+	case ATH6KL_HTC_TYPE_MBOX:
+		/* ath6kl_htc_mbox_attach(ar); */
+		printf("unsupported HTC type: ATH6KL_HTC_TYPE_MBOX.\n");
+		return EINVAL;
+	case ATH6KL_HTC_TYPE_PIPE:
+		ath6kl_htc_pipe_attach(sc);
+		break;
+	default:
+		printf("unknown HTC type.\n");
+		return EINVAL;
+	}
 
 	ret = ath6kl_bmi_init(sc);
 	if (ret)
@@ -105,6 +119,7 @@ err:
 int
 ath6kl_core_create(struct ath6kl_softc *sc)
 {
+	int ctr;
 
 	sc->sc_p2p = 0;
 
@@ -112,6 +127,51 @@ ath6kl_core_create(struct ath6kl_softc *sc)
 
 	sc->sc_max_norm_iface = 1;
 
+	mtx_init(&sc->sc_lock, "ath6kl_lock", NULL, MTX_DEF);
+	mtx_init(&sc->sc_mcastpsq_lock, "ath6kl_mcastpsq_lock",
+	    NULL, MTX_DEF);
+	mtx_init(&sc->sc_list_lock, "ath6kl_list_lock", NULL, MTX_DEF);
+
+	cv_init(&sc->sc_event_cv, "ath6kl_event_cv");
+	mtx_init(&sc->sc_event_mtx, "ath6kl_event_mtx", NULL, MTX_DEF);
+	sema_init(&sc->sc_sem, 1, "ath6kl_sem");
+	
+	TAILQ_INIT(&sc->sc_amsdu_rx_buffer_queue);
+	TAILQ_INIT(&sc->sc_vif_list);
+
+	clrbit(&sc->sc_flag, WMI_ENABLED);
+	clrbit(&sc->sc_flag, SKIP_SCAN);
+	clrbit(&sc->sc_flag, DESTROY_IN_PROGRESS);
+	
+	sc->sc_tx_pwr = 0;
+	sc->sc_intra_bss = 1;
+	sc->sc_lrssi_roam_threshold = DEF_LRSSI_ROAM_THRESHOLD;
+	
+	sc->sc_state = ATH6KL_STATE_OFF;
+	
+	/* Init the PS queues */
+	for (ctr = 0; ctr < AP_MAX_NUM_STA; ctr++) {
+		mtx_init(&sc->sc_sta_list[ctr].psq_lock, "ath6kl_psq",
+		    NULL, MTX_DEF);
+		TAILQ_INIT(&sc->sc_sta_list[ctr].psq);
+		TAILQ_INIT(&sc->sc_sta_list[ctr].apsdq);
+		sc->sc_sta_list[ctr].mgmt_psq_len = 0;
+		TAILQ_INIT(&sc->sc_sta_list[ctr].mgmt_psq);
+		sc->sc_sta_list[ctr].aggr_conn =
+		    malloc(sizeof(struct aggr_info_conn), M_ATH6KL_AGGR_INFO,
+		    M_NOWAIT);
+		if (!sc->sc_sta_list[ctr].aggr_conn) {
+			ath6kl_err("%s\n", "Failed to allocate memory for "
+			    "sta aggregation information\n");
+			ath6kl_core_destroy(sc);
+			return ENOMEM;
+		}
+	}
+	
+	TAILQ_INIT(&sc->sc_mcastpsq);
+	
+	memcpy(sc->sc_ap_country_code, DEF_AP_COUNTRY_CODE, 3);
+	
 	return 0;
 }
 

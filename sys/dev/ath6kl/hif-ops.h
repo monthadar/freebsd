@@ -45,7 +45,7 @@ static inline int
 ath6kl_hif_power_on(struct ath6kl_softc *sc)
 {
 
-	DPRINTF(sc, ATH6KL_DBG_HIF, "%s\n", "hif power on");
+	DPRINTF(ATH6KL_DBG_HIF, "%s\n", "hif power on");
 	return sc->sc_hif_ops->power_on(sc);
 }
 
@@ -53,7 +53,7 @@ static inline int
 ath6kl_hif_power_off(struct ath6kl_softc *sc)
 {
 
-	DPRINTF(sc, ATH6KL_DBG_HIF, "%s\n", "hif power off");
+	DPRINTF(ATH6KL_DBG_HIF, "%s\n", "hif power off");
 	return sc->sc_hif_ops->power_off(sc);
 }
 
@@ -61,8 +61,42 @@ static inline void
 ath6kl_hif_stop(struct ath6kl_softc *sc)
 {
 
-	DPRINTF(sc, ATH6KL_DBG_HIF, "%s\n", "hif stop");
+	DPRINTF(ATH6KL_DBG_HIF, "%s\n", "hif stop");
 	sc->sc_hif_ops->stop(sc);
+}
+
+static inline int ath6kl_hif_pipe_send(struct ath6kl_softc *sc,
+				       uint8_t pipe, struct mbuf *hdr_buf,
+				       struct mbuf *buf)
+{
+	DPRINTF(ATH6KL_DBG_HIF, "%s\n", "hif pipe send");
+
+	return sc->sc_hif_ops->pipe_send(sc, pipe, hdr_buf, buf);
+}
+
+static inline void ath6kl_hif_pipe_get_default(struct ath6kl_softc *sc,
+					       uint8_t *ul_pipe, uint8_t *dl_pipe)
+{
+	DPRINTF(ATH6KL_DBG_HIF, "%s\n", "hif pipe get default");
+
+	sc->sc_hif_ops->pipe_get_default(sc, ul_pipe, dl_pipe);
+}
+
+static inline int ath6kl_hif_pipe_map_service(struct ath6kl_softc *sc,
+					      uint16_t service_id, uint8_t *ul_pipe,
+					      uint8_t *dl_pipe)
+{
+	DPRINTF(ATH6KL_DBG_HIF, "%s\n", "hif pipe get default");
+
+	return sc->sc_hif_ops->pipe_map_service(sc, service_id, ul_pipe, dl_pipe);
+}
+
+static inline uint16_t ath6kl_hif_pipe_get_free_queue_number(struct ath6kl_softc *sc,
+							uint8_t pipe)
+{
+	DPRINTF(ATH6KL_DBG_HIF, "%s\n", "hif pipe get free queue number");
+
+	return sc->sc_hif_ops->pipe_get_free_queue_number(sc, pipe);
 }
 
 #endif /* HIF_OPS_H */

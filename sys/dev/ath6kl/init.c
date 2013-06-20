@@ -54,8 +54,6 @@ __FBSDID("$FreeBSD$");
 #include "htc-ops.h"
 #endif
 
-MALLOC_DEFINE(M_ATH6KL_FW, "ath6kl_fw", "Atheros 6KL firmware buffer");
-
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
 static const struct ath6kl_hw hw_list[] = {
@@ -440,7 +438,7 @@ ath6kl_set_htc_params(struct ath6kl_softc *sc, uint32_t mbox_isr_yield_val,
 		goto out;
 	}
 
-	DPRINTF(sc, ATH6KL_DBG_TRC, "block size set: %d (target addr:0x%X)\n",
+	DPRINTF(ATH6KL_DBG_TRC, "block size set: %d (target addr:0x%X)\n",
 	   blk_size, ath6kl_get_hi_item_addr(sc, HI_ITEM(hi_mbox_io_block_sz)));
 
 	if (mbox_isr_yield_val) {
@@ -618,7 +616,7 @@ int ath6kl_configure_target(struct ath6kl_softc *sc)
 		return EIO;
 	}
 
-	DPRINTF(sc, ATH6KL_DBG_TRC, "%s\n", "firmware mode set");
+	DPRINTF(ATH6KL_DBG_TRC, "%s\n", "firmware mode set");
 
 	/*
 	 * Hardcode the address use for the extended board data
@@ -996,10 +994,10 @@ static int ath6kl_fetch_fw_apin(struct ath6kl_softc *sc, const char *name)
 		switch (ie_id) {
 		case ATH6KL_FW_IE_FW_VERSION:
 			strlcpy(sc->sc_fw_version, data, sizeof(sc->sc_fw_version));
-			DPRINTF(sc, ATH6KL_DBG_BOOT, "found fw version %s\n", data);
+			DPRINTF(ATH6KL_DBG_BOOT, "found fw version %s\n", data);
 			break;
 		case ATH6KL_FW_IE_FW_IMAGE:
-			DPRINTF(sc, ATH6KL_DBG_BOOT, "found fw image ie (%zd B)\n",
+			DPRINTF(ATH6KL_DBG_BOOT, "found fw image ie (%zd B)\n",
 			   ie_len);
 			/* in testmode we already might have a fw file */
 			if (sc->sc_fw != NULL)
@@ -1026,7 +1024,7 @@ static int ath6kl_fetch_fw_apin(struct ath6kl_softc *sc, const char *name)
 			printf("firmware ie not yet handled\n");
 			break;
 		default:
-			DPRINTF(sc, ATH6KL_DBG_BOOT, "Unknown fw ie: %u\n", le32toh(hdr->id));
+			DPRINTF(ATH6KL_DBG_BOOT, "Unknown fw ie: %u\n", le32toh(hdr->id));
 			break;
 		}
 
@@ -1081,7 +1079,7 @@ int ath6kl_init_fetch_firmwares(struct ath6kl_softc *sc)
 #endif
 
 out:
-	DPRINTF(sc, ATH6KL_DBG_BOOT, "using fw api %d\n", sc->sc_fw_api);
+	DPRINTF(ATH6KL_DBG_BOOT, "using fw api %d\n", sc->sc_fw_api);
 	return 0;
 }
 
@@ -1139,7 +1137,7 @@ ath6kl_upload_board_file(struct ath6kl_softc *sc)
 	    sc->sc_fw_board->datasize == (board_data_size + board_ext_data_size)) {
 
 		/* write extended board data */
-		DPRINTF(sc, ATH6KL_DBG_BOOT,
+		DPRINTF(ATH6KL_DBG_BOOT,
 		   "writing extended board data to 0x%x (%d B)\n",
 		   board_ext_address, board_ext_data_size);
 
@@ -1165,7 +1163,7 @@ ath6kl_upload_board_file(struct ath6kl_softc *sc)
 		return ret;
 	}
 
-	DPRINTF(sc, ATH6KL_DBG_BOOT, "writing board file to 0x%x (%d B)\n",
+	DPRINTF(ATH6KL_DBG_BOOT, "writing board file to 0x%x (%d B)\n",
 	   board_address, board_data_size);
 
 	ret = ath6kl_bmi_write(sc, board_address, (const uint8_t *)sc->sc_fw_board->data,
@@ -1244,7 +1242,7 @@ ath6kl_upload_firmware(struct ath6kl_softc *sc)
 
 	address = sc->sc_hw.app_load_addr;
 
-	DPRINTF(sc, ATH6KL_DBG_BOOT, "writing firmware to 0x%x (%zd B)\n",
+	DPRINTF(ATH6KL_DBG_BOOT, "writing firmware to 0x%x (%zd B)\n",
 	   address, sc->sc_fw_len);
 
 	ret = ath6kl_bmi_fast_download(sc, address, sc->sc_fw, sc->sc_fw_len);
@@ -1357,7 +1355,7 @@ static int ath6kl_init_upload(struct ath6kl_softc *sc)
 	if (status)
 		return status;
 
-	DPRINTF(sc, ATH6KL_DBG_TRC, "old options: %d, old sleep: %d\n",
+	DPRINTF(ATH6KL_DBG_TRC, "old options: %d, old sleep: %d\n",
 	   options, sleep);
 
 #if 0 /* NOT YET */
@@ -1482,15 +1480,15 @@ int ath6kl_init_hw_params(struct ath6kl_softc *ar)
 
 	ar->sc_hw = *hw;
 
-	DPRINTF(ar, ATH6KL_DBG_BOOT,
+	DPRINTF(ATH6KL_DBG_BOOT,
 		   "target_ver 0x%x target_type 0x%x dataset_patch 0x%x app_load_addr 0x%x\n",
 		   ar->sc_version.target_ver, ar->sc_target_type,
 		   ar->sc_hw.dataset_patch_addr, ar->sc_hw.app_load_addr);
-	DPRINTF(ar, ATH6KL_DBG_BOOT,
+	DPRINTF(ATH6KL_DBG_BOOT,
 		   "app_start_override_addr 0x%x board_ext_data_addr 0x%x reserved_ram_size 0x%x\n",
 		   ar->sc_hw.app_start_override_addr, ar->sc_hw.board_ext_data_addr,
 		   ar->sc_hw.reserved_ram_size);
-	DPRINTF(ar, ATH6KL_DBG_BOOT,
+	DPRINTF(ATH6KL_DBG_BOOT,
 		   "refclk_hz %d uarttx_pin %d\n",
 		   ar->sc_hw.refclk_hz, ar->sc_hw.uarttx_pin);
 
@@ -1513,7 +1511,7 @@ static int __ath6kl_init_hw_start(struct ath6kl_softc *sc)
 {
 	int ret;
 
-	DPRINTF(sc, ATH6KL_DBG_BOOT, "%s\n", "hw start");
+	DPRINTF(ATH6KL_DBG_BOOT, "%s\n", "hw start");
 
 	ret = ath6kl_hif_power_on(sc);
 	if (ret)

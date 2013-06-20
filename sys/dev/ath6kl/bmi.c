@@ -54,7 +54,7 @@ ath6kl_bmi_done(struct ath6kl_softc *sc)
 	uint32_t cid = BMI_DONE;
 
 	if (sc->sc_bmi.done_sent) {
-		DPRINTF(sc, ATH6KL_DBG_BMI, "%s\n", "bmi done skipped");
+		DPRINTF(ATH6KL_DBG_BMI, "%s\n", "bmi done skipped");
 		return 0;
 	}
 
@@ -101,7 +101,7 @@ ath6kl_bmi_get_target_info(struct ath6kl_softc *sc,
 		return ret;
 	}
 
-	DPRINTF(sc, ATH6KL_DBG_BMI, "target info (ver: 0x%x type: 0x%x)\n",
+	DPRINTF(ATH6KL_DBG_BMI, "target info (ver: 0x%x type: 0x%x)\n",
 	    targ_info->version, targ_info->type);
 
 	return 0;
@@ -128,7 +128,7 @@ ath6kl_bmi_read(struct ath6kl_softc *sc, uint32_t addr, uint8_t *buf, uint32_t l
 	}
 	memset(sc->sc_bmi.cmd_buf, 0, size);
 
-	DPRINTF(sc, ATH6KL_DBG_BMI, "bmi read memory: device: addr: 0x%x, len: %d\n",
+	DPRINTF(ATH6KL_DBG_BMI, "bmi read memory: device: addr: 0x%x, len: %d\n",
 	   addr, len);
 
 	len_remain = len;
@@ -190,7 +190,7 @@ ath6kl_bmi_write(struct ath6kl_softc *sc, uint32_t addr, const uint8_t *buf,
 
 	memset(sc->sc_bmi.cmd_buf, 0, sc->sc_bmi.max_data_size + header);
 
-	DPRINTF(sc, ATH6KL_DBG_BMI, "bmi write memory: addr: 0x%x, len: %d\n", addr, len);
+	DPRINTF(ATH6KL_DBG_BMI, "bmi write memory: addr: 0x%x, len: %d\n", addr, len);
 
 	len_remain = len;
 	while (len_remain) {
@@ -250,7 +250,7 @@ int ath6kl_bmi_reg_read(struct ath6kl_softc *sc, uint32_t addr, uint32_t *param)
 	}
 	memset(sc->sc_bmi.cmd_buf, 0, size);
 
-	DPRINTF(sc, ATH6KL_DBG_BMI, "bmi read SOC reg: addr: 0x%x\n", addr);
+	DPRINTF(ATH6KL_DBG_BMI, "bmi read SOC reg: addr: 0x%x\n", addr);
 
 	offset = 0;
 	memcpy(&(sc->sc_bmi.cmd_buf[offset]), &cid, sizeof(cid));
@@ -293,7 +293,7 @@ int ath6kl_bmi_reg_write(struct ath6kl_softc *sc, uint32_t addr, uint32_t param)
 	}
 	memset(sc->sc_bmi.cmd_buf, 0, size);
 
-	DPRINTF(sc, ATH6KL_DBG_BMI, "bmi write SOC reg: addr: 0x%x, param: %d\n",
+	DPRINTF(ATH6KL_DBG_BMI, "bmi write SOC reg: addr: 0x%x, param: %d\n",
 	    addr, param);
 
 	offset = 0;
@@ -335,7 +335,7 @@ ath6kl_bmi_lz_data(struct ath6kl_softc *sc, uint8_t *buf, uint32_t len)
 	}
 	memset(sc->sc_bmi.cmd_buf, 0, size);
 
-	DPRINTF(sc, ATH6KL_DBG_BMI, "bmi send LZ data: len: %d)\n", len);
+	DPRINTF(ATH6KL_DBG_BMI, "bmi send LZ data: len: %d)\n", len);
 
 	len_remain = len;
 	while (len_remain) {
@@ -384,7 +384,7 @@ ath6kl_bmi_lz_stream_start(struct ath6kl_softc *sc, uint32_t addr)
 	}
 	memset(sc->sc_bmi.cmd_buf, 0, size);
 
-	DPRINTF(sc, ATH6KL_DBG_BMI, "bmi LZ stream start: addr: 0x%x)\n",
+	DPRINTF(ATH6KL_DBG_BMI, "bmi LZ stream start: addr: 0x%x)\n",
 	    addr);
 
 	offset = 0;

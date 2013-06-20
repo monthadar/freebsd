@@ -112,9 +112,17 @@ __FBSDID("$FreeBSD$");
 #include <dev/ath6kl/if_ath6klreg.h>
 #include <dev/ath6kl/if_ath6klioctl.h>
 #include <dev/ath6kl/bmi.h>
+#include <dev/ath6kl/wmi.h>
 #include <dev/ath6kl/target.h>
 #include <dev/ath6kl/core.h>
 #include <dev/ath6kl/hif.h>
+
+MALLOC_DEFINE(M_ATH6KL_FW, "ath6kl_fw", "Atheros 6KL firmware buffer");
+MALLOC_DEFINE(M_ATH6KL_AGGR_INFO, "ath6kl_aggr_info",
+    "Atheros 6KL sta aggregation information");
+MALLOC_DEFINE(M_ATH6KL_HTC_TARGET, "ath6kl_htc_target", "Atheros 6KL HTC target");
+MALLOC_DEFINE(M_ATH6KL_HTC_PACKET, "ath6kl_htc_packet", "Atheros 6KL HTC packet");
+MALLOC_DEFINE(M_ATH6KL_DEVICE, "ath6kl_device", "Atheros 6KL Device");
 
 static SYSCTL_NODE(_hw_usb, OID_AUTO, ath6kl, CTLFLAG_RW, 0,
     "USB Atheros 6kl series");
@@ -271,7 +279,7 @@ ath6kl_usb_submit_ctrl_out(struct ath6kl_softc *sc, uint8_t request,
 	    USB_SHORT_XFER_OK, NULL, ATH6KL_CMD_TIMEOUT);
 
 	if (ret != 0) {
-		DPRINTF(sc, ATH6KL_DBG_USB, "%s failed,result = %d\n",
+		DPRINTF(ATH6KL_DBG_USB, "%s failed,result = %d\n",
 		    __func__, ret);
 		return ret;
 	}
@@ -297,7 +305,7 @@ ath6kl_usb_submit_ctrl_in(struct ath6kl_softc *sc, uint8_t request,
 	    USB_SHORT_XFER_OK, NULL, 2*ATH6KL_CMD_TIMEOUT);
 
 	if (ret != 0) {
-		DPRINTF(sc, ATH6KL_DBG_USB, "%s failed,result = %d\n",
+		DPRINTF(ATH6KL_DBG_USB, "%s failed,result = %d\n",
 		    __func__, ret);
 		return ret;
 	}
@@ -394,7 +402,7 @@ ath6kl_usb_setup_xfer_resources(struct ath6kl_softc *sc)
 	uint8_t ep_max;
 	int error;
 
-	DPRINTF(sc, ATH6KL_DBG_USB, "%s\n", "setting up USB Pipes using interface");
+	DPRINTF(ATH6KL_DBG_USB, "%s\n", "setting up USB Pipes using interface");
 	ep = udev->endpoints;
 	ep_max = udev->endpoints_max;
 	while (ep_max--) {
@@ -404,21 +412,21 @@ ath6kl_usb_setup_xfer_resources(struct ath6kl_softc *sc)
 			switch(ep->edesc->bmAttributes) {
 			case UE_ISOCHRONOUS:
 				/* TODO for ISO */
-				DPRINTF(sc, ATH6KL_DBG_USB,
+				DPRINTF(ATH6KL_DBG_USB,
 				   "%s ISOC Ep:0x%2.2X maxpktsz:%d interval:%d\n",
 				   UE_GET_DIR(ep->edesc->bEndpointAddress) == UE_DIR_IN ?
 				   "RX" : "TX", ep->edesc->bEndpointAddress,
 				   UGETW(ep->edesc->wMaxPacketSize), ep->edesc->bInterval);
 				break;
 			case UE_BULK:
-				DPRINTF(sc, ATH6KL_DBG_USB,
+				DPRINTF(ATH6KL_DBG_USB,
 				   "%s Bulk Ep:0x%2.2X maxpktsz:%d\n",
 				   UE_GET_DIR(ep->edesc->bEndpointAddress) == UE_DIR_IN ?
 				   "RX" : "TX", ep->edesc->bEndpointAddress,
 				   UGETW(ep->edesc->wMaxPacketSize));
 				break;
 			case UE_INTERRUPT:
-				DPRINTF(sc, ATH6KL_DBG_USB,
+				DPRINTF(ATH6KL_DBG_USB,
 				   "%s Int Ep:0x%2.2X maxpktsz:%d interval:%d\n",
 				   UE_GET_DIR(ep->edesc->bEndpointAddress) == UE_DIR_IN ?
 				   "RX" : "TX", ep->edesc->bEndpointAddress,
@@ -451,20 +459,18 @@ ath6kl_attach(device_t dev)
 	sc->sc_dev = dev;
 	sc->sc_udev = udev;
 	sc->sc_iface_index = uaa->info.bIfaceIndex;
-#ifdef ATH6KL_DEBUG
-	sc->sc_debug = ath6kl_debug;
-#endif
-	DPRINTF(sc, ATH6KL_DBG_USB, "vendor_id = 0x%04x\n",
+
+	DPRINTF(ATH6KL_DBG_USB, "vendor_id = 0x%04x\n",
 	    uaa->info.idVendor);
-	DPRINTF(sc, ATH6KL_DBG_USB, "product_id = 0x%04x\n",
+	DPRINTF(ATH6KL_DBG_USB, "product_id = 0x%04x\n",
 	    uaa->info.idProduct);
 
 	switch (usbd_get_speed(udev)) {
 		case USB_SPEED_HIGH:
-			DPRINTF(sc, ATH6KL_DBG_USB, "%s\n", "USB 2.0 Host");
+			DPRINTF(ATH6KL_DBG_USB, "%s\n", "USB 2.0 Host");
 			break;
 		default:
-			DPRINTF(sc, ATH6KL_DBG_USB, "%s\n", "USB 1.1 Host");
+			DPRINTF(ATH6KL_DBG_USB, "%s\n", "USB 1.1 Host");
 	}
 
 	device_set_usb_desc(dev);
@@ -507,7 +513,6 @@ ath6kl_detach(device_t dev)
 	 * data lists and ioctls
 	 */
 	ATH6KL_LOCK(sc);
-	sc->sc_flags |= ATH6KL_FLAG_INVALID;
 
 	/* drain USB transfers */
 

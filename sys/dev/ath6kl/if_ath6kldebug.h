@@ -43,8 +43,8 @@ enum {
 };
 #undef BIT
 extern uint64_t ath6kl_debug;
-#define	DPRINTF(sc, m, fmt, ...) do {				\
-	if (sc->sc_debug & (m))					\
+#define	DPRINTF(m, fmt, ...) do {				\
+	if (ath6kl_debug & (m))					\
 		printf(fmt, __VA_ARGS__);			\
 } while (0)
 #define ath6kl_info(fmt, ...)	printf(fmt, __VA_ARGS__);
