@@ -251,13 +251,13 @@ static const struct usb_config ath6kl_usbconfig[ATH6KL_USB_N_XFERS] = {
 		.type = UE_INTERRUPT,
 		.endpoint = ATH6KL_USB_EP_ADDR_APP_INT_IN,
 		.direction = UE_DIR_IN,
-		.bufsize = 64,
+		.bufsize = ATH6KL_MAX_INT_CMDSZ,
+		.interval = 8,
 		.flags = {
 			.force_short_xfer = 1,
 			.pipe_bof = 1,
 		},
 		.callback = ath_app_int_rx_callback,
-		.timeout = ATH6KL_CMD_TIMEOUT
 	},
 };
 
